@@ -13,7 +13,29 @@ no folder open.
 [**Install Spec2Integration Pipeline from the Marketplace →**](https://marketplace.visualstudio.com/items?itemName=BalbirSingh.spec2integration)
 &nbsp;·&nbsp; or run `code --install-extension BalbirSingh.spec2integration`
 
+**Install** — from the VS Code Extensions view:
+
+![Installing Spec2Integration from the Visual Studio Marketplace in the Extensions view](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/install-marketplace.png)
+
+**Launcher** — scaffold a greenfield or BizTalk-migration workspace with no folder open:
+
+![The no-workspace launcher with Greenfield and BizTalk migration buttons](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/launcher.png)
+
+**Run Pipeline** — toggle options as checkboxes (unattended, auto-fix, allow Sev-2, …):
+
+![Run Pipeline option checkboxes — unattended, auto-fix, allow Sev-2, auto-accept clarifications, dry-run](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/run-pipeline-options.png)
+
+**Pipeline tree** — every integration's stages live from `status.json`:
+
 <img src="https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png" alt="Spec2Integration pipeline tree — integrations expanded into live pipeline stages with status pills" width="360" />
+
+**Progress cockpit** — a live dashboard with the stage table, coverage and generated artifacts:
+
+![Pipeline Progress cockpit — stage table, coverage, generated artifacts and timings](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/progress-cockpit.png)
+
+**IR visualizer** — the `integration-ir.yaml` as an interactive flow graph:
+
+![IR visualizer — Cytoscape flow graph of an integration-ir.yaml with status and findings overlay](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/ir-visualizer.png)
 
 Or use the pipeline directly in any Claude Code surface:
 
