@@ -5,6 +5,29 @@ Spec2Integration pipeline. It brings the prompt-driven experience of
 `tools/pipeline-runner` into VS Code, scaffolds new pipeline workspaces, and hosts
 the IR visualizer as a bundled webview.
 
+![Spec2Integration pipeline panel — integrations expanded into live pipeline stages](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png)
+
+## Install
+
+Install from the **Visual Studio Marketplace**:
+[**Spec2Integration Pipeline**](https://marketplace.visualstudio.com/items?itemName=BalbirSingh.spec2integration).
+
+- **In VS Code** — open the **Extensions** view (`Ctrl+Shift+X` / `Cmd+Shift+X`),
+  search for **Spec2Integration**, and click **Install**.
+- **From the command line:**
+  ```bash
+  code --install-extension BalbirSingh.spec2integration
+  ```
+- **From a `.vsix`** (pre-release builds) — download the `.vsix` from the
+  [GitHub Releases](https://github.com/balbrench/cci-spec2integration/releases)
+  page, then **Extensions view → ⋯ → Install from VSIX…** (or
+  `code --install-extension <file>.vsix`).
+
+![Installing Spec2Integration from the Visual Studio Marketplace in the Extensions view](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/install-marketplace.png)
+
+After installing, click the **Spec2Integration** icon in the activity bar to open
+the panel.
+
 ## Launch a new project (no workspace needed)
 
 Open the **Spec2Integration** activity-bar icon with **no folder open** and the
@@ -12,6 +35,8 @@ panel offers two starting points:
 
 - **Greenfield** — start from a PRD or brief.
 - **BizTalk migration** — reverse-engineer an existing BizTalk solution.
+
+![The no-workspace launcher with Greenfield and BizTalk migration buttons](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/launcher.png)
 
 Pick one, choose a parent folder and a name, and the extension **scaffolds a new
 workspace** containing exactly the agents, skills and commands that path needs
@@ -47,6 +72,8 @@ node:
 
 Greenfield projects get the same **Run Pipeline** option-checkboxes without the
 group/source steps.
+
+![Run Pipeline option checkboxes — unattended, auto-fix, allow Sev-2, auto-accept clarifications, dry-run](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/run-pipeline-options.png)
 
 ## In a pipeline workspace
 
@@ -87,6 +114,14 @@ group/source steps.
   Sev-1/2/3 findings.
 - **Adaptive walkthroughs** — separate Getting Started guides for greenfield and
   BizTalk (open from *Help → Get Started*).
+
+**Pipeline Progress cockpit** — a live, read-only dashboard for one integration:
+
+![Pipeline Progress cockpit — stage table, coverage, generated artifacts and timings](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/progress-cockpit.png)
+
+**IR visualizer** — the integration's `integration-ir.yaml` as an interactive flow graph:
+
+![IR visualizer — Cytoscape flow graph of an integration-ir.yaml with status and findings overlay](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/ir-visualizer.png)
 
 ## Why this design
 
