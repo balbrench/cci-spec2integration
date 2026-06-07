@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a defect in the pipeline, generated artifacts, or tooling
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please provide enough detail to reproduce the problem.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the problem
+      placeholder: /contracts fails when ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Exact steps, commands, and inputs used
+      placeholder: |
+        1. Run /specify with ...
+        2. Run /contracts
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Relevant artifacts or logs
+      description: Include snippets from spec.md, integration-ir.yaml, reports, or stack traces. Redact secrets.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Core pipeline
+        - Azure pack
+        - BizTalk pack
+        - VS Code extension
+        - FlowTester
+        - Docs/examples
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Claude Code surface, Node/.NET versions if relevant
+      placeholder: Windows 11, VS Code extension, Node 22, .NET 8

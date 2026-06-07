@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/balbrench/cci-spec2integration/discussions
+    about: Use GitHub Discussions for questions, architecture ideas, and general conversation.
+  - name: Security vulnerability report
+    url: https://github.com/balbrench/cci-spec2integration/security
+    about: Please report vulnerabilities privately through the repository security page.

@@ -1,0 +1,18 @@
+# Default owner for the whole repository
+* @balbrench
+
+# Core pipeline definitions
+/.claude/ @balbrench
+/schemas/ @balbrench
+/templates/ @balbrench
+/scripts/ @balbrench
+
+# Docs and examples
+/README.md @balbrench
+/docs/ @balbrench
+/examples/ @balbrench
+
+# Runtime and tools
+/src/ @balbrench
+/tools/ @balbrench
+/tests/ @balbrench

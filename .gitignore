@@ -1,0 +1,62 @@
+.env
+.env.*
+*.log
+*.secret
+*.tfstate
+.vscode/
+.idea/
+node_modules/
+bin/
+obj/
+TestResults/
+.azure/
+.tmp/
+
+# Build artefacts — never commit compiled binaries
+*.dll
+*.exe
+*.pdb
+*.so
+*.dylib
+*.lib
+*.a
+*.o
+*.obj
+*.class
+*.jar
+*.war
+*.nupkg
+*.snupkg
+*.msi
+*.msm
+*.cab
+packages/
+.nuget/
+
+# Local tool installs (NuGet packages downloaded by helper scripts, etc.)
+.tools/
+
+# Generated pipeline artifacts — exclude all specs contents but keep the folder
+specs/*
+!specs/.gitkeep
+
+# Ad-hoc debugging dumps / captured tool output (root level only) — never commit.
+# These crept in before: deployed-resource pulls, redirected Spectral lint output,
+# empty validation logs, and one-off patch scripts.
+/remote_*.json
+/spec_openapi.json
+/spec_asyncapi.json
+*_validation.txt
+/.msi-cracker.ps1
+.tmp-*
+# Stray new-format solution files (we keep a single hand-maintained .sln)
+*.slnx
+# Cracker working dirs (the canonical extract root lives under specs/ which is already ignored)
+.msi-extract/
+# Pulled Azure/Kudu deployment log dumps
+logs_temp/
+# Logic App deployment package (generated at deploy time by Compress-Archive / CI, pushed via az ... --src)
+logicapp.zip
+# azure-reviewer output belongs at <integration-folder>/azure-review.md (under specs/, already ignored).
+# A copy at the repo root is always a mis-placed/orphaned artifact.
+/azure-review.md

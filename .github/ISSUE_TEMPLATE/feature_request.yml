@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an enhancement to the pipeline, platform packs, or tooling
+labels:
+  - enhancement
+body:
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the requested improvement
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What integration scenario or authoring pain point are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the feature, new command, agent, validation rule, or platform support you want
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Core pipeline
+        - Azure pack
+        - BizTalk pack
+        - New platform pack
+        - VS Code extension
+        - FlowTester
+        - Docs/examples
+    validations:
+      required: true
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Link relevant docs, examples, prior art, or PRD excerpts
