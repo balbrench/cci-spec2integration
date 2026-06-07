@@ -4,7 +4,20 @@ A spec-driven integration pipeline for Claude Code. Converts a PRD into a fully 
 
 ## Quick Start
 
-1. Open this workspace in Claude Code (CLI, VS Code extension, or claude.ai/code).
+The easiest way to drive the pipeline is the **Spec2Integration Pipeline** VS Code
+extension — an activity-bar Pipeline tree that shows every integration's stages live,
+a guided command wizard, the IR visualizer, and a one-click hand-off to your Claude
+Code chat. It also scaffolds a fresh greenfield or BizTalk-migration workspace with
+no folder open.
+
+[**Install Spec2Integration Pipeline from the Marketplace →**](https://marketplace.visualstudio.com/items?itemName=BalbirSingh.spec2integration)
+&nbsp;·&nbsp; or run `code --install-extension BalbirSingh.spec2integration`
+
+<img src="https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png" alt="Spec2Integration pipeline tree — integrations expanded into live pipeline stages with status pills" width="360" />
+
+Or use the pipeline directly in any Claude Code surface:
+
+1. Open this workspace in Claude Code (CLI, VS Code, or claude.ai/code).
 2. Claude Code auto-loads everything under [.claude/](.claude/) — no install step.
 3. Type `/` to see the available slash commands.
 4. Start with `/draft-prd` to create a PRD, then follow the pipeline.
@@ -62,10 +75,9 @@ node tools/pipeline-runner/server.mjs   # then open the printed http://127.0.0.1
 For the same prompt-driven model without leaving the editor, the **Spec2Integration
 Pipeline** extension is on the Visual Studio Marketplace:
 
-[**Install Spec2Integration Pipeline →**](https://marketplace.visualstudio.com/items?itemName=BalbirSingh.spec2integration)
+[**Install from the Marketplace →**](https://marketplace.visualstudio.com/items?itemName=BalbirSingh.spec2integration)
 &nbsp;·&nbsp; or run `code --install-extension BalbirSingh.spec2integration`
-
-<img src="https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png" alt="Spec2Integration pipeline tree — integrations expanded into live pipeline stages with status pills" width="360" />
+(also shown in [Quick Start](#quick-start)).
 
 It's a native VS Code extension: an activity-bar **Pipeline** tree that shows every
 integration's stages live from `status.json`, a **guided wizard** that walks you
