@@ -390,6 +390,22 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(w);
   }
 
+  // Belt-and-suspenders. File-system watchers can silently miss creation events
+  // on network- or OneDrive-redirected corporate paths, which would leave the
+  // "No integrations found yet" welcome up after the chat has already written the
+  // first status.json. Re-discover whenever the panel becomes visible or the
+  // window regains focus (e.g. switching back from the Claude Code chat once a
+  // stage completed) — refreshAll only reads a few JSON files, and
+  // checkNotifications primes silently, so this never toasts on a no-op.
+  context.subscriptions.push(
+    treeView.onDidChangeVisibility((e) => {
+      if (e.visible) refreshAll();
+    }),
+    vscode.window.onDidChangeWindowState((s) => {
+      if (s.focused) refreshAll();
+    }),
+  );
+
   // Initial paint + IR schema IntelliSense registration.
   refreshAll();
   void registerIrSchema(repoRoot);
