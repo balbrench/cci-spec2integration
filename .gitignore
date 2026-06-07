@@ -36,6 +36,12 @@ packages/
 # Local tool installs (NuGet packages downloaded by helper scripts, etc.)
 .tools/
 
+# Per-machine Claude Code settings (local paths + personal allowlist) — never commit.
+.claude/settings.local.json
+
+# Playwright MCP session captures — local debugging artifacts.
+.playwright-mcp/
+
 # Generated pipeline artifacts — exclude all specs contents but keep the folder
 specs/*
 !specs/.gitkeep

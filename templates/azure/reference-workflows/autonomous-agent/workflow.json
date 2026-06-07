@@ -1,0 +1,152 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Agent_Loop": {
+        "type": "Agent",
+        "runAfter": {},
+        "limit": {
+          "timeout": "PT1H",
+          "count": 100
+        },
+        "inputs": {
+          "parameters": {
+            "deploymentId": "@appsetting('openAI_deploymentId')",
+            "agentModelType": "AzureOpenAI",
+            "messages": [
+              {
+                "role": "System",
+                "content": "###system-prompt###"
+              },
+              {
+                "role": "User",
+                "content": "@{triggerBody()?['question']}"
+              }
+            ],
+            "agentModelSettings": {
+              "deploymentModelProperties": {
+                "name": "@appsetting('openAI_modelName')"
+              }
+            }
+          },
+          "modelConfigurations": {
+            "model1": {
+              "referenceName": "agentConnection1"
+            }
+          }
+        },
+        "tools": {
+          "get_current_time": {
+            "description": "Gets the current date and time in UTC format.",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {}
+            },
+            "actions": {
+              "Get_Time": {
+                "type": "Compose",
+                "inputs": {
+                  "currentTime": "@utcNow()",
+                  "formattedTime": "@formatDateTime(utcNow(), 'yyyy-MM-dd HH:mm:ss')",
+                  "timezone": "UTC"
+                }
+              }
+            }
+          },
+          "calculate": {
+            "description": "Performs basic arithmetic. Supports add, subtract, multiply, divide.",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {
+                "operation": {
+                  "type": "string",
+                  "description": "The operation to perform: add, subtract, multiply, or divide"
+                },
+                "num1": {
+                  "type": "number",
+                  "description": "The first number"
+                },
+                "num2": {
+                  "type": "number",
+                  "description": "The second number"
+                }
+              },
+              "required": ["operation", "num1", "num2"]
+            },
+            "actions": {
+              "Calculate_Result": {
+                "type": "Compose",
+                "inputs": {
+                  "operation": "@agentparameters('operation')",
+                  "num1": "@agentparameters('num1')",
+                  "num2": "@agentparameters('num2')",
+                  "result": "@if(equals(agentparameters('operation'), 'add'), add(agentparameters('num1'), agentparameters('num2')), if(equals(agentparameters('operation'), 'subtract'), sub(agentparameters('num1'), agentparameters('num2')), if(equals(agentparameters('operation'), 'multiply'), mul(agentparameters('num1'), agentparameters('num2')), if(equals(agentparameters('operation'), 'divide'), div(agentparameters('num1'), agentparameters('num2')), 'Unknown operation'))))"
+                }
+              }
+            }
+          },
+          "echo_message": {
+            "description": "Echoes a message back with timestamp and status. Useful for confirmation flows.",
+            "agentParameterSchema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "description": "The message to echo back"
+                }
+              },
+              "required": ["message"]
+            },
+            "actions": {
+              "Echo": {
+                "type": "Compose",
+                "inputs": {
+                  "echoedMessage": "@agentparameters('message')",
+                  "timestamp": "@utcNow()",
+                  "status": "Message received and echoed successfully"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Response": {
+        "type": "Response",
+        "runAfter": {
+          "Agent_Loop": ["Succeeded"]
+        },
+        "inputs": {
+          "statusCode": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "answer": "@{outputs('Agent_Loop')?['LastAssistantMessage']}",
+            "runId": "@workflow()['run']['name']"
+          }
+        }
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string",
+                "description": "The question to ask the agent"
+              }
+            },
+            "required": ["question"]
+          }
+        }
+      }
+    }
+  },
+  "kind": "Stateful"
+}

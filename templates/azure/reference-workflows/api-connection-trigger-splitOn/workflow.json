@@ -1,0 +1,37 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "actions": {
+      "Compose": {
+        "type": "Compose",
+        "inputs": "item: @{triggerBody()?['subject']}",
+        "runAfter": {}
+      }
+    },
+    "outputs": {},
+    "triggers": {
+      "When_a_notification_arrives": {
+        "type": "ApiConnectionNotification",
+        "inputs": {
+          "host": {
+            "connection": { "referenceName": "###connectionName###" }
+          },
+          "fetch": {
+            "pathTemplate": { "template": "###fetch-template###" },
+            "method": "get",
+            "queries": {}
+          },
+          "subscribe": {
+            "body": { "NotificationUrl": "@listCallbackUrl()" },
+            "pathTemplate": { "template": "###subscribe-template###" },
+            "method": "post",
+            "queries": {}
+          }
+        },
+        "splitOn": "@triggerBody()?['value']"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

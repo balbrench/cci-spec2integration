@@ -1,0 +1,63 @@
+{
+  "managedApiConnections": {},
+  "serviceProviderConnections": {
+    "SapSncNoPwdWithMessageServer": {
+      "displayName": "SapConnection",
+      "parameterValues": {
+        "authenticationType": "Snc",
+        "client": "@appsetting('Sap_client')",
+        "logonType": "MessageServer",
+        "messageServerHost": "@appsetting('Sap_messageServerHost')",
+        "messageServerLogonGroup": "@appsetting('Sap_messageServerLogonGroup')",
+        "messageServerPort": "@appsetting('Sap_messageServerPort')",
+        "messageServerSystemId": "@appsetting('Sap_messageServerSystemId')",
+        "password": "@appsetting('Sap_password')",
+        "sncCertificate": "",
+        "sncPartnerName": "",
+        "sncQop": "Authentication",
+        "sncSso": "On"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/sap"
+      }
+    },
+    "SapSncUNamePwdWithMessageServer": {
+      "displayName": "SapConnection",
+      "parameterValues": {
+        "authenticationType": "Snc",
+        "client": "@appsetting('Sap_client')",
+        "logonType": "MessageServer",
+        "messageServerHost": "@appsetting('Sap_messageServerHost')",
+        "messageServerLogonGroup": "@appsetting('Sap_messageServerLogonGroup')",
+        "messageServerPort": "@appsetting('Sap_messageServerPort')",
+        "messageServerSystemId": "@appsetting('Sap_messageServerSystemId')",
+        "password": "@appsetting('Sap_password')",
+        "sncPartnerName": "",
+        "sncPassword": "",
+        "sncQop": "Authentication",
+        "sncSso": "Off",
+        "sncUserName": "@appsetting('Sap_sncUserName')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/sap"
+      }
+    },
+    "sap": {
+      "displayName": "Trigger",
+      "parameterValues": {
+        "applicationServerHost": "@appsetting('Sap_applicationServerHost')",
+        "applicationServerService": "@appsetting('Sap_applicationServerService')",
+        "applicationServerSystemNumber": "@appsetting('Sap_applicationServerSystemNumber')",
+        "authenticationType": "Basic",
+        "client": "@appsetting('Sap_client')",
+        "language": "",
+        "logonType": "ApplicationServer",
+        "password": "@appsetting('Sap_password')",
+        "userName": "@appsetting('Sap_userName')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/sap"
+      }
+    }
+  }
+}

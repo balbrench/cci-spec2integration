@@ -1,0 +1,118 @@
+apiVersion: spec2integration/v1
+kind: Integration
+metadata:
+  name: fail-orphans
+  domain: testing
+  owner: ir-validator-fixtures
+  description: One working flow plus four deliberately-orphaned top-level declarations (channel, message, mapping, dependency).
+  scenario: greenfield
+
+channels:
+  - name: poInbound
+    kind: http
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: poOutbound
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: CanonicalOrder
+    delivery: at-least-once
+    classification: internal
+
+  # CHANNEL_UNUSED: declared but no flow trigger, step, endpoint, errorHandling, or test references it.
+  - name: orphanCh
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: CanonicalOrder
+    delivery: at-least-once
+    classification: internal
+
+messages:
+  - name: PurchaseOrder
+    schemaRef: contracts/schemas/PurchaseOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    idempotencyKey: body.orderId
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+  - name: CanonicalOrder
+    schemaRef: contracts/schemas/CanonicalOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+  # MESSAGE_UNUSED: declared but no channel.schemaRef and no endpoint references it.
+  - name: OrphanMsg
+    schemaRef: contracts/schemas/OrphanMsg.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+mappings:
+  - name: PurchaseOrderToCanonical
+    source: { messageRef: PurchaseOrder }
+    target: { messageRef: CanonicalOrder }
+    engine: jsonata
+    rules:
+      - target: orderId
+        source: orderId
+    tests:
+      - name: happy-path
+        input:  { inline: { orderId: "PO-1" } }
+        expect: { inline: { orderId: "PO-1" } }
+
+  # MAPPING_UNUSED: declared but no step.mappingRef names it.
+  - name: OrphanMapping
+    source: { messageRef: PurchaseOrder }
+    target: { messageRef: CanonicalOrder }
+    engine: jsonata
+    rules:
+      - target: orderId
+        source: orderId
+    tests:
+      - name: happy-path
+        input:  { inline: { orderId: "PO-1" } }
+        expect: { inline: { orderId: "PO-1" } }
+
+flows:
+  - name: PurchaseOrderFlow
+    stateful: true
+    trigger: poInbound
+    steps:
+      - id: receive
+        type: receive
+        channel: poInbound
+        next: transform
+      - id: transform
+        type: transform
+        mappingRef: PurchaseOrderToCanonical
+        next: send
+      - id: send
+        type: send
+        channel: poOutbound
+
+# DEPENDENCY_UNUSED: declared but no flow has an invoke step naming it.
+dependencies:
+  - name: orphanDep
+    kind: rest
+    description: External REST API never called by any invoke step.
+    endpoint: https://example.com/api
+    timeout: PT30S

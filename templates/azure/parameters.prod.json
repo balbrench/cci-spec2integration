@@ -1,0 +1,7 @@
+{
+  "env": { "value": "prod" },
+  "serviceBusFullyQualifiedNamespace": {
+    "value": "@Microsoft.KeyVault(SecretUri=https://<kv-name>.vault.azure.net/secrets/serviceBusFqdn/)"
+  },
+  "dependencyBaseUrls": { "value": {} }
+}

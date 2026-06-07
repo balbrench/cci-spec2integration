@@ -1,0 +1,182 @@
+# Greenfield IR template.
+# For migration scenarios (BizTalk, MuleSoft, TIBCO, etc.) set metadata.scenario: migration
+# and add the `source:` block. See the commented MIGRATION EXAMPLE at the bottom of this file.
+apiVersion: spec2integration/v1
+kind: Integration
+metadata:
+  name: <kebab-case-name>
+  domain: <business-domain>
+  owner: <team>
+  description: <one-liner>
+  scenario: greenfield          # greenfield | migration
+  # sourcePlatform: greenfield  # set when scenario: migration — biztalk | mulesoft | tibco | boomi | informatica | ssis
+
+channels:
+  - name: <name-kind>
+    kind: http   # http | queue | topic | blob | timer | eventgrid
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: <MessageName>
+    # Messaging semantics (Phase 6). Omit any that are not yet decided; defaults apply.
+    delivery: at-least-once        # at-most-once | at-least-once | exactly-once
+    ordering: none                 # none | fifo | byKey (requires orderingKey)
+    # orderingKey: body.<id>       # required when ordering: byKey
+    # sessionKey: <key>            # alias for session-aware brokers
+    # ack: peekLock                # auto | peekLock | manual   (queue/topic only)
+    # concurrency: { prefetch: 32, maxConcurrent: 8 }   # inbound queue/topic only
+    # maxDeliveryCount: 5
+    # ttl: P7D
+    # retention: P30D              # Article V retention hook
+    classification: internal       # public | internal | confidential | restricted
+
+messages:
+  - name: <MessageName>
+    schemaRef: contracts/schemas/<MessageName>.json
+    contentType: application/json
+    format: json                 # json | xml | csv | edi-x12 | edifact | avro | protobuf | flat-file | text | binary
+    encoding: utf-8
+    schemaLanguage: json-schema
+    idempotencyKey: <id>         # required on inbound external messages (Article III)
+    correlationId: X-Correlation-Id
+    version: 1.0.0
+    compatibility: backward      # backward | forward | full | none
+    classification: internal
+    # pii: true
+    headers:
+      - name: correlationId
+        type: uuid
+        required: true
+        source: generated        # literal | body | requestHeader | context | generated
+    examples:
+      - name: <example-name>
+        path: contracts/examples/<MessageName>.example.json
+
+mappings:
+  - name: <SourceName>To<TargetName>
+    description: <one-liner>
+    source: { messageRef: <SourceName> }
+    target: { messageRef: <TargetName> }
+    engine: jsonata              # default; jslt | xslt | liquid | expression for specialised cases
+    rules:
+      - target: <targetField>
+        source: <sourceField>
+      - target: <computedField>
+        expression: "$uuid()"
+    tests:
+      - name: happy-path
+        input:  { path: contracts/examples/<SourceName>.example.json }
+        expect: { path: contracts/examples/<TargetName>.example.json }
+
+endpoints:
+  - name: <EndpointName>
+    channel: <channel-name>
+    operation: request
+    contractRef: contracts/openapi.yaml
+
+flows:
+  - name: <FlowName>Flow
+    stateful: true
+    trigger: <inbound-channel-name>
+    steps:
+      - id: receive
+        type: receive
+        channel: <inbound-channel-name>
+        next: transform
+      - id: transform
+        type: transform
+        mappingRef: <SourceName>To<TargetName>
+        next: send
+      - id: send
+        type: send
+        channel: <outbound-channel-name>
+        # errorHandling:            # Phase 6 — per-step overrides
+        #   onError: fallback       # continue | dlq | fallback | fail
+        #   fallback: <stepId>      # must resolve in the same flow
+        #   retryableErrors: [TransientHttpError]
+        #   nonRetryableErrors: [ValidationError]
+
+errorHandling:
+  retry:
+    policy: exponential
+    count: 4
+    interval: PT5S
+  dlq:
+    channel: <dlq-channel-name>
+  circuitBreaker:
+    failureRatio: 0.5
+    windowSeconds: 60
+
+identity:
+  managedIdentity: system
+  roleAssignments:
+    - scope: <resource>
+      role: <least-privilege-role>
+
+nonFunctionals:
+  rps: 10
+  p95LatencyMs: 2000
+  slo:
+    availability: 99.9
+    errorBudgetDays: 30
+
+dependencies: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MIGRATION EXAMPLE — uncomment and adapt when scenario: migration.
+# Required when scenario=migration: source.platform AND source.artifactsRoot.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# metadata:
+#   scenario: migration
+#   sourcePlatform: biztalk
+#
+# source:
+#   platform: biztalk
+#   artifactsRoot: ./Artifacts            # relative to the IR folder; preserved files live here
+#   # preservedRoot: C:/Projects/MyBizTalkSolution   # absolute path to original solution; resolution: preservedRoot > artifactsRoot > IR folder
+#   inventoryRef: ../biztalk-inventory.md
+#   # manifestRef: ../_extracted/_manifest.json
+#
+# messages:
+#   - name: OnboardingRequest
+#     schemaRef: contracts/schemas/OnboardingRequest.json
+#     nativeSchemaSource:                 # preserved verbatim from the source platform
+#       origin: preserved
+#       path: SimpleOrchestration/src/Aim.SimpleOrchestration/OnboardingRequest.xsd
+#     schemaLanguage: json-schema
+#     format: xml
+#     contentType: application/xml
+#     idempotencyKey: body.Email
+#     classification: confidential
+#     pii: true
+#
+# mappings:
+#   # Preserved mapping — XSL is shipped byte-for-byte (Article II.a).
+#   - name: OnboardingRequestToCustomerRegistration
+#     source: { messageRef: OnboardingRequest }
+#     target: { messageRef: CustomerRegistration }
+#     origin: preserved
+#     migrationHint: preserve
+#     engine: xslt
+#     sourceArtifact:
+#       btm:  SimpleOrchestration/src/Aim.SimpleOrchestration/Maps/OnboardingRequestToCustomerRegistrationMap.btm
+#       xslt: file:///C:/Projects/LogicApp1/App1/OnboardCustomer/Artifacts/Maps/OnboardingRequestToCustomerRegistrationMap.xslt
+#     transforms:
+#       logic_apps_standard: passthrough          # ship the XSL unchanged
+#       mulesoft:            xslt_to_dataweave
+#       azure_functions:     xslt_to_local_function
+#     parameters:
+#       - name: registrationDateTime
+#         binding: "@{utcNow()}"
+#     # rules: [...]   # documentation only when origin: preserved — packs MUST NOT re-emit them
+#
+#   # Authored mapping — generated from rules; portable engine.
+#   - name: PurchaseRequestToCanonical
+#     source: { messageRef: PurchaseRequest }
+#     target: { messageRef: CanonicalPurchase }
+#     origin: authored
+#     migrationHint: auto
+#     engine: jsonata
+#     rules:
+#       - target: orderId
+#         source: header.RequestId

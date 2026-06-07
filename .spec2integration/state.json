@@ -1,0 +1,6 @@
+{
+    "activePlatform":  "azure",
+    "setAt":  "2026-05-11T01:30:00Z",
+    "plugin":  "spec2integration-azure",
+    "activeIntegration":  "specs/greenfield/001-flat-file-sales-etl-warehouse"
+}

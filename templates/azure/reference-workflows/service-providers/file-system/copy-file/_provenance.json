@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/copyFile/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "copyFile",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Server-side file copy. Prefer over getFileContent → createFile when no content transformation is needed — keeps the body off the workflow run history."
+}

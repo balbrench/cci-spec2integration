@@ -1,0 +1,8 @@
+{
+  "upstream": ".github/skills/logic-apps/references/reference-catalog/workflows/HttpActionWorkflow/HttpActionCustomTimeout.json",
+  "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+  "originalSource": "Azure Logic Apps runtime reference corpus",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Canonical outbound HTTP action with custom timeout, retry policy, async-pattern disabled, and dual response paths (408 on timeout/failure, 200 on success). Upstream top-level 'kind: testState' has been stripped — it is a test-fixture wrapper, not a valid workflow.json property. Substitute 'testURI' and 'testTimeout' with concrete values at emission time."
+}

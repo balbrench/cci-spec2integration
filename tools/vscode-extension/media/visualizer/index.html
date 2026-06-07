@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integration IR Visualizer</title>
+<!-- Vendored locally (see vendor/README.md) — no CDN dependency; works offline. -->
+<script src="vendor/cytoscape.min.js"></script>
+<script src="vendor/dagre.min.js"></script>
+<script src="vendor/cytoscape-dagre.js"></script>
+<script src="vendor/js-yaml.min.js"></script>
+<style>
+  :root {
+    --bg: #1e1e2e;
+    --surface: #262637;
+    --surface2: #2e2e42;
+    --border: #3e3e56;
+    --text: #e0e0e8;
+    --text-dim: #9090a8;
+    --accent: #7c8ff4;
+    --green: #28a745;
+    --blue: #4a8ff7;
+    --lightblue: #6ba0d6;
+    --orange: #fd7e14;
+    --purple: #8b5cf6;
+    --gray: #6c757d;
+    --yellow: #ffc107;
+    --red: #dc3545;
+    --green-bg: #d4edda;
+    --blue-bg: #cce5ff;
+    --lightblue-bg: #dce4f0;
+    --orange-bg: #ffe8cc;
+    --purple-bg: #e8daef;
+    --gray-bg: #e2e2e2;
+    --yellow-bg: #fff3cd;
+    --red-bg: #f8d7da;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* Toolbar */
+  #toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+  #toolbar h1 { font-size: 15px; font-weight: 600; margin-right: 12px; white-space: nowrap; }
+  .btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-size: 13px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .btn:hover { background: var(--border); }
+  .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-group { display: flex; gap: 0; }
+  .btn-group .btn { border-radius: 0; border-right-width: 0; }
+  .btn-group .btn:first-child { border-radius: 6px 0 0 6px; }
+  .btn-group .btn:last-child { border-radius: 0 6px 6px 0; border-right-width: 1px; }
+  #searchBox { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-size: 13px; width: 180px; }
+  #searchBox::placeholder { color: var(--text-dim); }
+  .sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+  #metaLabel { font-size: 12px; color: var(--text-dim); margin-left: auto; white-space: nowrap; }
+  #metaLabel a { color: var(--text); text-decoration: underline dotted; cursor: pointer; }
+  #metaLabel .badge { margin-right: 6px; }
+
+  /* Status pill */
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid var(--border); background: var(--surface2); color: var(--text); position: relative; }
+  .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray); }
+  .status-pill.ok      .dot { background: var(--green); }
+  .status-pill.warn    .dot { background: var(--yellow); }
+  .status-pill.blocked .dot { background: var(--red); }
+  .status-pill .next { color: var(--text-dim); font-weight: 500; margin-left: 4px; }
+  #statusPanel { display: none; position: absolute; top: 52px; right: 16px; width: 480px; max-height: 70vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 50; padding: 14px 16px; font-size: 13px; }
+  #statusPanel h3 { font-size: 13px; margin-bottom: 8px; color: var(--accent); }
+  #statusPanel ul { list-style: none; padding: 0; margin: 0 0 10px 0; }
+  #statusPanel li { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  #statusPanel li:last-child { border-bottom: none; }
+  #statusPanel li .ico { width: 18px; flex-shrink: 0; font-family: monospace; font-weight: 700; }
+  #statusPanel li.done    .ico { color: var(--green); }
+  #statusPanel li.missing .ico { color: var(--text-dim); }
+  #statusPanel li.blocked .ico { color: var(--red); }
+  #statusPanel li.stale   .ico { color: var(--orange, #d97706); }
+  #statusPanel li.covered .ico { color: var(--blue); }
+  #statusPanel li .name { flex: 1; }
+  #statusPanel li .summary { color: var(--text-dim); font-size: 11px; }
+  #statusPanel .next-cmd { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-top: 8px; font-family: monospace; font-size: 12px; }
+  #statusPanel .stage-cmd { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text-dim); font-size: 10px; padding: 1px 6px; cursor: pointer; margin-left: 6px; font-family: monospace; }
+  #statusPanel .stage-cmd:hover { background: var(--surface2); color: var(--accent); border-color: var(--accent); }
+  #statusPanel li .name { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; flex: 1; }
+  #statusPanel li .name .text { flex: 1; }
+  .copy-btn { padding: 3px 10px; border: 1px solid var(--accent); border-radius: 4px; background: var(--accent); color: #fff; font-size: 11px; cursor: pointer; margin-left: 8px; font-family: inherit; }
+  .copy-btn:hover { background: #6a7eee; }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface); color: var(--text); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 18px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.18s; }
+  #toast.show { opacity: 1; }
+
+  /* Main area */
+  #main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Drop zone */
+  #dropZone { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; border: 2px dashed var(--border); border-radius: 12px; margin: 24px; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  #dropZone:hover, #dropZone.dragover { border-color: var(--accent); background: rgba(124,143,244,0.06); }
+  #dropZone svg { width: 64px; height: 64px; fill: var(--text-dim); margin-bottom: 16px; }
+  #dropZone p { font-size: 15px; color: var(--text-dim); }
+  #dropZone p strong { color: var(--text); }
+  #dropZone input { display: none; }
+
+  /* Graph */
+  #cy { flex: 1; background: var(--bg); display: none; }
+
+  /* Sidebar */
+  #sidebar { width: 360px; background: var(--surface); border-left: 1px solid var(--border); overflow-y: auto; display: none; position: fixed; top: 0; right: 0; bottom: 0; z-index: 100; box-shadow: -4px 0 20px rgba(0,0,0,0.5); }
+  #sidebar.open { display: block; }
+  #sidebarHeader { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 2; }
+  #sidebarHeader h2 { font-size: 14px; font-weight: 600; }
+  #sidebarClose { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 18px; padding: 4px; }
+  #sidebarBody { padding: 16px; font-size: 13px; }
+  #sidebarBody table { width: 100%; border-collapse: collapse; }
+  #sidebarBody table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  #sidebarBody table td:first-child { font-weight: 600; color: var(--text-dim); white-space: nowrap; width: 110px; }
+  #sidebarBody table td:last-child { word-break: break-word; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: var(--green-bg); color: #155724; }
+  .badge-blue { background: var(--blue-bg); color: #004085; }
+  .badge-orange { background: var(--orange-bg); color: #856404; }
+  .badge-purple { background: var(--purple-bg); color: #4a1a7a; }
+  .badge-red { background: var(--red-bg); color: #721c24; }
+  .badge-gray { background: var(--gray-bg); color: #383838; }
+  .badge-yellow { background: var(--yellow-bg); color: #856404; }
+  .section-title { font-weight: 600; color: var(--accent); margin: 16px 0 8px; font-size: 13px; }
+
+  /* Legend */
+  #legend { position: absolute; bottom: 16px; left: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 12px; z-index: 10; display: none; max-width: 260px; }
+  #legend h3 { font-size: 12px; margin-bottom: 8px; color: var(--text-dim); }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+
+  /* Breadcrumb for drill-down */
+  #breadcrumb { display: none; padding: 6px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); font-size: 13px; }
+  #breadcrumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  #breadcrumb a:hover { text-decoration: underline; }
+  #breadcrumb span { color: var(--text-dim); margin: 0 6px; }
+
+  /* Filter bar */
+  #filterBar { display: none; padding: 6px 16px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 8px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+  #filterBar.open { display: flex; }
+  #filterBar label { color: var(--text-dim); margin-right: 4px; }
+  #filterBar select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface2); color: var(--text); font-size: 12px; }
+
+  /* Tooltip */
+  .cy-tooltip { position: absolute; padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--text); pointer-events: none; z-index: 100; max-width: 280px; white-space: pre-wrap; }
+
+  /* Findings banner (Phase 1: ir-validation-report.json) */
+  #findingsBar { display: none; padding: 6px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-size: 12px; align-items: center; gap: 10px; }
+  #findingsBar.show { display: flex; }
+  #findingsBar.blocked { background: linear-gradient(90deg, rgba(220,53,69,0.18), var(--surface) 60%); border-bottom-color: var(--red); }
+  #findingsBar.warn    { background: linear-gradient(90deg, rgba(255,193,7,0.16), var(--surface) 60%); border-bottom-color: var(--yellow); }
+  #findingsBar.pass    { background: linear-gradient(90deg, rgba(40,167,69,0.14), var(--surface) 60%); border-bottom-color: var(--green); }
+  #findingsBar .verdict { font-weight: 700; }
+  #findingsBar.blocked .verdict { color: var(--red); }
+  #findingsBar.warn    .verdict { color: var(--yellow); }
+  #findingsBar.pass    .verdict { color: var(--green); }
+  #findingsBar .count { padding: 2px 8px; border-radius: 999px; font-weight: 600; font-size: 11px; }
+  #findingsBar .count.s1 { background: rgba(220,53,69,0.25); color: #ff8a95; }
+  #findingsBar .count.s2 { background: rgba(255,193,7,0.22); color: #ffd76a; }
+  #findingsBar .count.s3 { background: rgba(74,143,247,0.22); color: #9ec0ff; }
+  #findingsBar .stale { color: var(--yellow); font-style: italic; }
+  #findingsBar button { margin-left: auto; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-size: 12px; cursor: pointer; }
+  #findingsBar button:hover { background: var(--border); }
+
+  #findingsDrawer { display: none; position: absolute; top: 96px; left: 16px; width: 520px; max-height: 70vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 60; padding: 12px 14px; font-size: 12px; }
+  #findingsDrawer.open { display: block; }
+  #findingsDrawer h3 { font-size: 13px; margin-bottom: 8px; color: var(--accent); }
+  #findingsDrawer .f { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  #findingsDrawer .f:last-child { border-bottom: none; }
+  #findingsDrawer .f:hover { background: rgba(124,143,244,0.06); }
+  #findingsDrawer .sevdot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  #findingsDrawer .sevdot.s1 { background: var(--red); }
+  #findingsDrawer .sevdot.s2 { background: var(--yellow); }
+  #findingsDrawer .sevdot.s3 { background: var(--blue); }
+  #findingsDrawer .rule { font-family: monospace; color: var(--accent); font-size: 11px; }
+  #findingsDrawer .loc  { color: var(--text-dim); font-size: 11px; word-break: break-all; }
+  #findingsDrawer .msg  { color: var(--text); margin-top: 2px; }
+
+  /* Sidebar findings block */
+  .findings-block { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: rgba(220,53,69,0.08); border: 1px solid rgba(220,53,69,0.35); }
+  .findings-block.s2only { background: rgba(255,193,7,0.06); border-color: rgba(255,193,7,0.35); }
+  .findings-block .row  { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  .findings-block .row:last-child { border-bottom: none; }
+  .findings-block .rule { font-family: monospace; font-weight: 600; font-size: 11px; }
+  .findings-block .rule.s1 { color: #ff8a95; }
+  .findings-block .rule.s2 { color: #ffd76a; }
+  .findings-block .rule.s3 { color: #9ec0ff; }
+
+  /* Pipeline runner */
+  #runnerPanel { display: none; flex: 1; overflow: auto; padding: 24px; background:
+      radial-gradient(circle at top right, rgba(124,143,244,0.16), transparent 28%),
+      radial-gradient(circle at bottom left, rgba(253,126,20,0.10), transparent 24%),
+      var(--bg); }
+  #runnerPanel.open { display: block; }
+  .runner-shell { max-width: 1240px; margin: 0 auto; display: grid; gap: 16px; }
+  .runner-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.7fr); gap: 16px; align-items: start; }
+  .runner-card { background: rgba(38,38,55,0.92); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.22); }
+  .runner-card h2, .runner-card h3 { font-size: 14px; margin-bottom: 10px; color: var(--text); }
+  .runner-card p { color: var(--text-dim); font-size: 13px; line-height: 1.45; }
+  .runner-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .runner-hero .title { max-width: 720px; }
+  .runner-hero .title h2 { font-size: 20px; margin-bottom: 6px; }
+  .runner-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .runner-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; color: var(--text); }
+  .runner-chip strong { color: #fff; }
+  .runner-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 14px; }
+  .runner-metric { border: 1px solid var(--border); border-radius: 10px; background: rgba(46,46,66,0.86); padding: 10px 12px; }
+  .runner-metric .label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .runner-metric .value { color: #fff; font-size: 20px; font-weight: 700; margin-top: 4px; }
+  .runner-note { margin-top: 10px; font-size: 12px; color: var(--text-dim); }
+  .runner-form { display: grid; gap: 12px; }
+  .runner-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .runner-field { display: grid; gap: 6px; }
+  .runner-field label { color: var(--text-dim); font-size: 12px; }
+  .runner-field input, .runner-field select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); font-size: 13px; }
+  .runner-inline { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+  .runner-check { display: inline-flex; gap: 6px; align-items: center; color: var(--text); font-size: 12px; }
+  .runner-check input { accent-color: var(--accent); }
+  .runner-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .runner-actions .btn { font-size: 12px; }
+  .runner-preview { margin-top: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: #1a1a28; font-family: Consolas, Monaco, monospace; font-size: 12px; color: #d8def7; white-space: pre-wrap; word-break: break-word; }
+  .runner-subtle { color: var(--text-dim); font-size: 12px; }
+  .runner-callout { border-radius: 10px; padding: 12px 14px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); }
+  .runner-callout.warn { border-color: rgba(255,193,7,0.45); background: rgba(255,193,7,0.08); }
+  .runner-callout.blocked { border-color: rgba(220,53,69,0.5); background: rgba(220,53,69,0.08); }
+  .runner-callout.ok { border-color: rgba(40,167,69,0.45); background: rgba(40,167,69,0.08); }
+  .runner-callout .cmd { margin-top: 8px; font-family: Consolas, Monaco, monospace; font-size: 12px; color: #fff; }
+  .runner-stage-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .runner-stage-table th, .runner-stage-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; }
+  .runner-stage-table th { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .runner-stage-table td.summary { color: var(--text-dim); }
+  .runner-stage-table .cmd-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); cursor: pointer; font-size: 11px; font-family: Consolas, Monaco, monospace; }
+  .runner-stage-table .cmd-btn:hover { border-color: var(--accent); color: #fff; }
+  .runner-status { display: inline-flex; align-items: center; gap: 6px; }
+  .runner-status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--gray); }
+  .runner-status.done .dot { background: var(--green); }
+  .runner-status.missing .dot { background: var(--yellow); }
+  .runner-status.blocked .dot { background: var(--red); }
+  .runner-status.covered .dot { background: var(--blue); }
+  .runner-status.stale .dot { background: var(--orange, #d97706); }
+  .runner-empty { padding: 22px; border: 1px dashed var(--border); border-radius: 12px; color: var(--text-dim); text-align: center; }
+  @media (max-width: 980px) {
+    .runner-grid { grid-template-columns: 1fr; }
+    #runnerPanel { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <h1>&#9670; IR Visualizer</h1>
+  <div class="btn-group" id="viewButtons">
+    <button class="btn active" data-view="context">System Context</button>
+    <button class="btn" data-view="lineage">Data Lineage</button>
+  </div>
+  <div class="sep"></div>
+  <input type="text" id="searchBox" placeholder="Search nodes...">
+  <button class="btn" id="btnFilter">&#9881; Filters</button>
+  <button class="btn" id="btnFit">Fit</button>
+  <button class="btn" id="btnExport">&#8681; PNG</button>
+  <span id="statusPill" class="status-pill" style="display:none"></span>
+  <span id="metaLabel"></span>
+</div>
+
+<div id="filterBar">
+  <label>Tag:</label>
+  <select id="filterTag"><option value="">All</option></select>
+  <label>Stateful:</label>
+  <select id="filterStateful"><option value="">All</option><option value="true">Stateful</option><option value="false">Stateless</option></select>
+  <label>Classification:</label>
+  <select id="filterClassification"><option value="">All</option><option value="internal">Internal</option><option value="confidential">Confidential</option><option value="restricted">Restricted</option><option value="public">Public</option></select>
+  <label>Migration Hint:</label>
+  <select id="filterHint"><option value="">All</option><option value="auto">Auto</option><option value="local-function">Local Function</option><option value="azure-function">Azure Function</option><option value="manual">Manual</option></select>
+</div>
+
+<div id="breadcrumb">
+  <a id="bcBack">&#8592; System Context</a>
+  <span>&#8250;</span>
+  <span id="bcFlow"></span>
+</div>
+
+<div id="findingsBar">
+  <span class="verdict" id="findingsVerdict">—</span>
+  <span class="count s1" id="findingsCountS1">0 Sev-1</span>
+  <span class="count s2" id="findingsCountS2">0 Sev-2</span>
+  <span class="count s3" id="findingsCountS3">0 Sev-3</span>
+  <span id="findingsSource" style="color:var(--text-dim);"></span>
+  <span class="stale" id="findingsStale" style="display:none;">⚠ stale — re-run /review</span>
+  <button id="findingsToggle">Show findings</button>
+</div>
+
+<div id="findingsDrawer"></div>
+
+<div id="flowSummary" style="display:none;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-dim);"></div>
+
+<div id="main">
+  <div id="emptyState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--text-dim);text-align:center;padding:24px;">
+    <svg viewBox="0 0 24 24" style="width:56px;height:56px;fill:var(--text-dim);margin-bottom:14px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+    <p id="emptyTitle" style="font-size:15px;">Select an integration to visualize.</p>
+    <p id="emptySub" style="margin-top:6px;font-size:12px;">Use <strong>Open IR Visualizer</strong> from the Spec2Integration pipeline tree.</p>
+  </div>
+  <div id="cy" style="display:none;"></div>
+  <div id="sidebar">
+    <div id="sidebarHeader">
+      <h2 id="sidebarTitle">Details</h2>
+      <button id="sidebarClose">&times;</button>
+    </div>
+    <div id="sidebarBody"></div>
+  </div>
+</div>
+
+<div id="legend">
+  <h3>Legend</h3>
+  <div id="legendItems"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── State ─────────────────────────────────────────────────────── */
+  let ir = null;          // parsed YAML
+  let cy = null;          // Cytoscape instance
+  let currentView = 'context';  // context | lineage | flow
+  let currentFlow = null; // flow object when drilled-in
+  let currentStatus = null;     // status.json pushed by the host (drives the pill)
+  let validationReport = null;       // parsed ir-validation-report.json (pushed by host)
+  let findingsByNodeId = {};         // nodeId → [finding, ...]
+  let unmappedFindings = [];         // findings whose location couldn't resolve to a node
+
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => document.querySelectorAll(s);
+
+  /* ── Colours ───────────────────────────────────────────────────── */
+  const C = {
+    externalBg:   '#d4edda', externalBr:   '#28a745',
+    flowBg:       '#cce5ff', flowBr:       '#004085',
+    channelBg:    '#dce4f0', channelBr:    '#4a6fa5',
+    mapBg:        '#ffe8cc', mapBr:        '#fd7e14',
+    depBg:        '#e8daef', depBr:        '#6f42c1',
+    pipeBg:       '#e2e2e2', pipeBr:       '#6c757d',
+    routeBg:      '#fff3cd', routeBr:      '#ffc107',
+    errorBg:      '#f8d7da', errorBr:      '#dc3545',
+    msgBg:        '#dce4f0', msgBr:        '#4a6fa5',
+    confBg:       '#ffe8cc', confBr:       '#e67700',
+    restrictBg:   '#f8d7da', restrictBr:   '#dc3545',
+  };
+
+
+  function loadYamlText(text) {
+    try {
+      ir = jsyaml.load(text);
+      hideEmptyState();
+      initViews();
+      return true;
+    } catch (err) {
+      alert('Failed to parse YAML:\n' + err.message);
+      return false;
+    }
+  }
+
+  const EMPTY_DEFAULT_TITLE = 'Select an integration to visualize.';
+  const EMPTY_DEFAULT_SUB = 'Use <strong>Open IR Visualizer</strong> from the Spec2Integration pipeline tree.';
+  function showEmptyState(title, subHtml) {
+    const es = $('#emptyState');
+    if (es) es.style.display = 'flex';
+    const t = $('#emptyTitle'); if (t) t.textContent = title || EMPTY_DEFAULT_TITLE;
+    const s = $('#emptySub'); if (s) s.innerHTML = subHtml || EMPTY_DEFAULT_SUB;
+    const cyEl = $('#cy'); if (cyEl) cyEl.style.display = 'none';
+    const lg = $('#legend'); if (lg) lg.style.display = 'none';
+  }
+  function hideEmptyState() {
+    const es = $('#emptyState');
+    if (es) es.style.display = 'none';
+  }
+
+
+  /* Compact toolbar pill driven by status.json the host pushes in. The full
+     stage checklist / next-command actions live in the extension's tree, so the
+     viewer only surfaces a glanceable summary here. */
+  function renderStatusPill(s) {
+    const pill = document.getElementById('statusPill');
+    if (!pill) return;
+    if (!s) { pill.style.display = 'none'; return; }
+    const stages = s.stages || [];
+    const done = stages.filter(x => x.status === 'done').length;
+    const total = stages.length;
+    const blocked = stages.some(x => x.status === 'blocked');
+    const staleness = Array.isArray(s.staleness) ? s.staleness : [];
+    const c = s.counts || {};
+    const sev1 = c.sev1 ?? 0, sev2 = c.sev2 ?? 0;
+    const pillClass = (blocked || sev1) ? 'blocked' : (done === total && !staleness.length && !sev2 ? 'ok' : 'warn');
+    pill.style.display = 'inline-flex';
+    pill.className = 'status-pill ' + pillClass;
+    pill.innerHTML = `<span class="dot"></span>Stage ${done}/${total}` +
+      (sev1 ? `<span class="next" style="color:var(--red,#dc3545)">${sev1} Sev-1</span>` : '') +
+      (sev2 ? `<span class="next" style="color:var(--orange,#d97706)">${sev2} Sev-2</span>` : '') +
+      (staleness.length ? `<span class="next" style="color:var(--orange,#d97706)">⟳ ${staleness.length} stale</span>` : '');
+    pill.title = `${s.folder || ''}\nStage ${done}/${total}` +
+      (sev1 ? ` · ${sev1} Sev-1` : '') + (sev2 ? ` · ${sev2} Sev-2` : '') +
+      (staleness.length ? ` · ${staleness.length} stale` : '') +
+      (s.next && s.next.command ? `\nNext: ${s.next.command}` : '');
+  }
+
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+
+  /* Parse a finding.location string into one or more node ids. The validator
+     emits human-readable patterns; this parser is tolerant of new ones. */
+  function locationToNodeIds(loc) {
+    if (!loc) return [];
+    const ids = new Set();
+    const s = String(loc);
+    // Walk every "section[NAME]" segment in the string.
+    const re = /(flows|messages|channels|mappings|dependencies|endpoints)\s*\[\s*([A-Za-z0-9_\-]+)\s*\]/g;
+    const map = { flows: 'flow:', messages: 'msg:', channels: 'ch:', mappings: 'map:', dependencies: 'dep:', endpoints: 'endpoint:' };
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      ids.add(map[m[1]] + m[2]);
+    }
+    // .trigger=NAME → the channel
+    const t = s.match(/trigger\s*=\s*([A-Za-z0-9_\-]+)/);
+    if (t) ids.add('ch:' + t[1]);
+    // .steps[ID] segment → step:ID (only meaningful in flow detail view)
+    const st = s.match(/steps\s*\[\s*([A-Za-z0-9_\-]+)\s*\]/);
+    if (st) ids.add('step:' + st[1]);
+    return Array.from(ids);
+  }
+
+  function indexFindings(findings) {
+    findingsByNodeId = {};
+    unmappedFindings = [];
+    findings.forEach(f => {
+      const ids = locationToNodeIds(f.location);
+      if (ids.length === 0) {
+        unmappedFindings.push(f);
+        return;
+      }
+      ids.forEach(id => {
+        (findingsByNodeId[id] = findingsByNodeId[id] || []).push(f);
+      });
+    });
+  }
+
+  function highestSev(findings) {
+    let s = 99;
+    findings.forEach(f => { if (f.severity < s) s = f.severity; });
+    return s === 99 ? null : s;
+  }
+
+  function renderFindingsBar(rep) {
+    const bar = document.getElementById('findingsBar');
+    const sum = rep.summary || {};
+    const verdict = sum.verdict || (sum.sev1 ? 'BLOCKED' : 'PASS');
+    bar.classList.add('show');
+    bar.classList.remove('blocked', 'warn', 'pass');
+    if (verdict === 'BLOCKED' || (sum.sev1 || 0) > 0) bar.classList.add('blocked');
+    else if ((sum.sev2 || 0) > 0) bar.classList.add('warn');
+    else bar.classList.add('pass');
+
+    document.getElementById('findingsVerdict').textContent = verdict;
+    document.getElementById('findingsCountS1').textContent = (sum.sev1 || 0) + ' Sev-1';
+    document.getElementById('findingsCountS2').textContent = (sum.sev2 || 0) + ' Sev-2';
+    document.getElementById('findingsCountS3').textContent = (sum.sev3 || 0) + ' Sev-3';
+    document.getElementById('findingsSource').textContent = '· ir-validation-report.json' + (rep.generated ? ' (' + rep.generated.split('T')[0] + ')' : '');
+
+    const drawer = document.getElementById('findingsDrawer');
+    const findings = (rep.findings || []).slice().sort((a, b) => (a.severity - b.severity) || (a.id - b.id));
+    drawer.innerHTML = '<h3>Findings (' + findings.length + ')</h3>' +
+      findings.map(f => {
+        const cls = 's' + f.severity;
+        return '<div class="f" data-fid="' + f.id + '">' +
+          '<div class="sevdot ' + cls + '"></div>' +
+          '<div style="flex:1;">' +
+            '<div><span class="rule">' + escapeHtml(f.ruleId || '?') + '</span> · Sev-' + f.severity + '</div>' +
+            '<div class="loc">' + escapeHtml(f.location || '') + '</div>' +
+            '<div class="msg">' + escapeHtml(f.message || '') + '</div>' +
+          '</div></div>';
+      }).join('') +
+      (unmappedFindings.length ? '<div style="margin-top:8px;color:var(--text-dim);font-style:italic;">' + unmappedFindings.length + ' finding(s) could not be linked to a graph node.</div>' : '');
+
+    drawer.querySelectorAll('.f').forEach(el => {
+      el.addEventListener('click', () => {
+        const fid = Number(el.getAttribute('data-fid'));
+        const f = findings.find(x => x.id === fid);
+        if (!f) return;
+        const ids = locationToNodeIds(f.location);
+        focusNode(ids);
+      });
+    });
+
+    const tog = document.getElementById('findingsToggle');
+    tog.onclick = () => {
+      drawer.classList.toggle('open');
+      tog.textContent = drawer.classList.contains('open') ? 'Hide findings' : 'Show findings';
+    };
+  }
+
+  function focusNode(ids) {
+    if (!cy || !ids || !ids.length) return;
+    let firstFound = null;
+    for (const id of ids) {
+      const n = cy.getElementById(id);
+      if (n && n.length) { firstFound = n; break; }
+    }
+    if (!firstFound) return;
+    cy.animate({ center: { eles: firstFound }, zoom: Math.max(cy.zoom(), 1.0) }, { duration: 250 });
+    cy.elements().removeClass('highlight');
+    firstFound.addClass('highlight');
+    // Open sidebar with the node's data
+    try { onNodeTap({ target: firstFound }); } catch {}
+  }
+
+  /* Apply severity classes to currently rendered nodes. Called after every
+     view render, and again whenever the report (re)loads. */
+  function decorateFindings() {
+    if (!cy) return;
+    cy.batch(() => {
+      cy.nodes().removeClass('hasS1 hasS2 hasS3');
+      Object.entries(findingsByNodeId).forEach(([nodeId, list]) => {
+        const n = cy.getElementById(nodeId);
+        if (!n || !n.length) return;
+        const sev = highestSev(list);
+        if (sev === 1) n.addClass('hasS1');
+        else if (sev === 2) n.addClass('hasS2');
+        else if (sev === 3) n.addClass('hasS3');
+      });
+    });
+  }
+
+
+  /* ── Init after load ───────────────────────────────────────────── */
+  function initViews() {
+    hideEmptyState();
+    $('#cy').style.display = 'block';
+    $('#legend').style.display = 'block';
+
+    const m = ir.metadata || {};
+    const provBadge = (ir.source && ir.source.platform)
+      ? `<span class="badge badge-orange" title="Reverse-engineered from ${escHtml(ir.source.platform)}">⮌ ${escHtml(ir.source.platform)}</span>`
+      : `<span class="badge badge-green" title="Greenfield (authored from a PRD)">greenfield</span>`;
+    $('#metaLabel').innerHTML = `${provBadge} <a href="#" id="metaInfoLink" title="Integration governance, identity & NFRs (Articles III–V)">${escHtml(m.name || '?')}</a>  •  ${(ir.channels||[]).length} ch  •  ${(ir.messages||[]).length} msg  •  ${(ir.mappings||[]).length} map  •  ${(ir.flows||[]).length} flows  •  ${(ir.dependencies||[]).length} deps`;
+    const metaInfoLink = $('#metaInfoLink');
+    if (metaInfoLink) metaInfoLink.onclick = (e) => { e.preventDefault(); openIntegrationSidebar(); };
+    // Populate tag filter from all tags across all artifact types
+    const allTags = new Set();
+    ['channels','messages','mappings','flows','dependencies'].forEach(section => {
+      (ir[section] || []).forEach(item => (item.tags || []).forEach(t => allTags.add(t)));
+    });
+    const tagSelect = $('#filterTag');
+    tagSelect.innerHTML = '<option value="">All</option>';
+    [...allTags].sort().forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      tagSelect.appendChild(opt);
+    });
+    renderContext();
+  }
+
+  /* ── Cytoscape helpers ─────────────────────────────────────────── */
+  function initCy(elements, layoutOpts, styleExtra) {
+    if (cy) cy.destroy();
+    const baseStyle = [
+      { selector: 'node', style: {
+        'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '160px',
+        'font-size': '11px', 'text-valign': 'center', 'text-halign': 'center',
+        'color': '#1a1a2e', 'border-width': 2, 'width': 'label', 'height': 'label',
+        'padding': '14px', 'shape': 'data(shape)',
+        'background-color': 'data(bg)', 'border-color': 'data(br)',
+        'min-width': '60px', 'min-height': '36px',
+      }},
+      { selector: 'node.faded', style: { 'opacity': 0.15 }},
+      { selector: 'node.highlight', style: { 'border-width': 4, 'border-color': '#7c8ff4' }},
+      { selector: 'node[nodeType="dependency"]', style: { 'border-style': 'dashed' }},
+      { selector: 'edge', style: {
+        'width': 2, 'line-color': '#555570', 'target-arrow-color': '#555570',
+        'target-arrow-shape': 'triangle', 'curve-style': 'bezier',
+        'arrow-scale': 0.8, 'font-size': '10px', 'color': '#9090a8',
+        'text-background-color': '#1e1e2e', 'text-background-opacity': 0.85,
+        'text-background-padding': '3px',
+        'events': 'yes',
+        'text-events': 'yes',
+      }},
+      { selector: 'edge[label]', style: { 'label': 'data(label)' }},
+      { selector: 'edge[kind = "dlq"]', style: {
+        'line-style': 'dashed', 'line-color': '#dc3545',
+        'target-arrow-color': '#dc3545', 'color': '#dc3545',
+      }},
+      { selector: 'edge[kind = "helper"]', style: {
+        'line-style': 'dotted', 'line-color': '#9aa0a6',
+        'target-arrow-color': '#9aa0a6', 'color': '#9aa0a6',
+      }},
+      { selector: 'edge[kind = "trigger"]', style: {
+        'font-size': '10px', 'color': '#9aa0a6', 'font-style': 'italic',
+      }},
+      { selector: 'edge.faded', style: { 'opacity': 0.08 }},
+      { selector: 'edge.highlight', style: { 'line-color': '#7c8ff4', 'target-arrow-color': '#7c8ff4', 'width': 3 }},
+      // Validation severity rings (Phase 1)
+      { selector: 'node.hasS1', style: {
+        'border-color': '#dc3545', 'border-width': 4,
+        'overlay-color': '#dc3545', 'overlay-padding': 6, 'overlay-opacity': 0.12,
+      }},
+      { selector: 'node.hasS2', style: {
+        'border-color': '#ffc107', 'border-width': 4,
+        'overlay-color': '#ffc107', 'overlay-padding': 4, 'overlay-opacity': 0.10,
+      }},
+      { selector: 'node.hasS3', style: {
+        'border-color': '#4a8ff7', 'border-width': 3,
+      }},
+    ];
+
+    cy = cytoscape({
+      container: $('#cy'),
+      elements: elements,
+      style: baseStyle.concat(styleExtra || []),
+      layout: layoutOpts,
+      wheelSensitivity: 0.3,
+      // Cap auto-fit so a 1-2 node graph (e.g. a pass-through with no mappings)
+      // doesn't balloon to fill the viewport.
+      maxZoom: 1.75,
+      minZoom: 0.1,
+    });
+
+    cy.on('tap', 'node', onNodeTap);
+    cy.on('tap', 'edge', onEdgeTap);
+    cy.on('tap', (e) => { if (e.target === cy) closeSidebar(); });
+
+    // Re-apply severity rings each time the graph is (re)built.
+    setTimeout(decorateFindings, 0);
+  }
+
+  /* ── 1. System Context View ────────────────────────────────────── */
+  function renderContext() {
+    currentView = 'context';
+    currentFlow = null;
+    updateViewButtons();
+    $('#emptyState').style.display = ir ? 'none' : 'flex';
+    $('#cy').style.display = 'block';
+    $('#breadcrumb').style.display = 'none';
+    $('#flowSummary').style.display = 'none';
+    closeSidebar();
+
+    const els = [];
+    const channelSet = new Set();
+    const depSet = new Set();
+
+    // Collect integration groups from flow tags to create compound parents
+    const intGroups = new Map(); // tag → set of flow names
+    (ir.flows || []).forEach(f => {
+      (f.tags || []).filter(t => /^INT-\d+$/i.test(t)).forEach(t => {
+        if (!intGroups.has(t)) intGroups.set(t, new Set());
+        intGroups.get(t).add(f.name);
+      });
+    });
+    // Create compound parent node per integration group (only if >1 flow or always for clarity)
+    intGroups.forEach((flows, tag) => {
+      els.push({ data: {
+        id: 'intGroup:' + tag, label: tag,
+        nodeType: 'integrationGroup', bg: C.flowBg, br: C.flowBr, shape: 'round-rectangle',
+      }});
+    });
+    // Build flow→tag lookup (first INT-NNN tag)
+    const flowToGroup = {};
+    (ir.flows || []).forEach(f => {
+      const intTag = (f.tags || []).find(t => /^INT-\d+$/i.test(t));
+      if (intTag) flowToGroup[f.name] = 'intGroup:' + intTag;
+    });
+
+    // Helper: collapse a raw format value to a short tag for display.
+    const friendlyFmt = (raw) => {
+      if (!raw) return '';
+      const v = String(raw).toLowerCase();
+      if (v.includes('flat')) return 'flat-file';
+      if (v.includes('xml')) return 'xml';
+      if (v.includes('json')) return 'json';
+      if (v.includes('csv')) return 'csv';
+      if (v.includes('edi')) return 'edi';
+      if (v.includes('avro')) return 'avro';
+      if (v.includes('proto')) return 'protobuf';
+      if (v.includes('text') || v.includes('plain')) return 'text';
+      if (v.includes('binary') || v.includes('octet')) return 'binary';
+      return v;
+    };
+    // Resolve a channel's payload format from the IR (binding > message bound via mapping).
+    const msgByName_ctx = {};
+    (ir.messages || []).forEach(m => { msgByName_ctx[m.name] = m; });
+    const channelToMsg = {};
+    (ir.flows || []).forEach(f => {
+      (f.steps || []).forEach((s, i, arr) => {
+        if (s.type === 'transform' && s.mappingRef) {
+          const mp = (ir.mappings || []).find(x => x.name === s.mappingRef);
+          if (!mp) return;
+          for (let j = i - 1; j >= 0; j--) {
+            if (arr[j].type === 'receive' && arr[j].channel) { channelToMsg[arr[j].channel] = mp.source && mp.source.messageRef; break; }
+          }
+          for (let j = i + 1; j < arr.length; j++) {
+            if (arr[j].type === 'send' && arr[j].channel) { channelToMsg[arr[j].channel] = mp.target && mp.target.messageRef; break; }
+          }
+        }
+      });
+    });
+    const formatForChannel = (ch) => {
+      const b = ch.binding || {};
+      const fmt = friendlyFmt(b.wireFormat || b.contentType || ch.format);
+      if (fmt) return fmt;
+      const msgName = channelToMsg[ch.name];
+      const msg = msgName && msgByName_ctx[msgName];
+      return msg ? friendlyFmt(msg.format) : '';
+    };
+
+    // Channels
+    (ir.channels || []).forEach(ch => {
+      channelSet.add(ch.name);
+      const tagLabel = (ch.tags || []).length ? '\n[' + ch.tags.join(', ') + ']' : '';
+      const fmt = formatForChannel(ch);
+      const fmtLabel = fmt ? '\n<' + fmt + '>' : '';
+      els.push({ data: {
+        id: 'ch:' + ch.name, label: ch.name + tagLabel + fmtLabel, nodeType: 'channel',
+        bg: C.channelBg, br: C.channelBr, shape: 'round-rectangle',
+        tags: ch.tags || [],
+        raw: ch,
+      }});
+    });
+
+    // Dependencies
+    (ir.dependencies || []).forEach(d => {
+      depSet.add(d.name);
+      const tagLabel = (d.tags || []).length ? '\n[' + d.tags.join(', ') + ']' : '';
+      // Hint label for parser sidecars (path-based heuristic on codeRef)
+      let hint = '';
+      const cr = (d.codeRef || '').toLowerCase();
+      if (cr.includes('flatfile') || cr.includes('flat-file')) hint = '\n<flat-file decoder>';
+      else if (cr.includes('xml-parser') || cr.includes('xmlparser')) hint = '\n<xml parser>';
+      else if (cr.includes('json-parser') || cr.includes('jsonparser')) hint = '\n<json parser>';
+      els.push({ data: {
+        id: 'dep:' + d.name, label: d.name + tagLabel + hint, nodeType: 'dependency',
+        bg: C.depBg, br: C.depBr, shape: 'round-rectangle',
+        tags: d.tags || [],
+        raw: d,
+      }});
+    });
+
+    // Mappings (rendered as their own node so flow→mapping→helper is visible)
+    const mappingSet = new Set();
+    (ir.mappings || []).forEach(m => {
+      mappingSet.add(m.name);
+      const tagLabel = (m.tags || []).length ? '\n[' + m.tags.join(', ') + ']' : '';
+      const engineLabel = m.engine ? '\n<' + m.engine + '>' : '';
+      els.push({ data: {
+        id: 'map:' + m.name, label: m.name + tagLabel + engineLabel, nodeType: 'mapping',
+        bg: C.mapBg, br: C.mapBr, shape: 'round-rectangle',
+        tags: m.tags || [],
+        raw: m,
+      }});
+    });
+
+    // Build codeRef→dependency name lookup
+    const codeRefToDep = {};
+    (ir.dependencies || []).forEach(d => {
+      if (d.codeRef) codeRefToDep[d.codeRef] = d.name;
+    });
+
+    // Build mapping name → [dep names] lookup.
+    // Heuristic: a dep is a helper of a mapping if the dep's codeRef basename
+    // (without extension) equals the mapping's name. Covers the common
+    // scripting-functoid sidecar pattern (e.g. mapping FooMap + dep
+    // codeRef …/FooMap.cs). Also union explicit mapping.helpers[] if present.
+    const baseNoExt = (p) => {
+      if (!p) return '';
+      const b = String(p).split(/[\\/]/).pop();
+      return b.replace(/\.[^.]+$/, '');
+    };
+    const depByMappingBase = {};
+    (ir.dependencies || []).forEach(d => {
+      const k = baseNoExt(d.codeRef);
+      if (k) (depByMappingBase[k] = depByMappingBase[k] || []).push(d.name);
+    });
+    const mappingToDeps = {};
+    (ir.mappings || []).forEach(m => {
+      const set = new Set();
+      (depByMappingBase[m.name] || []).forEach(n => set.add(n));
+      (m.helpers || []).forEach(n => { if (depSet.has(n)) set.add(n); });
+      if (set.size) mappingToDeps[m.name] = Array.from(set);
+    });
+
+    // Flows — parented to their integration group
+    (ir.flows || []).forEach(f => {
+      const blocked = (f.steps || []).some(s => s.migrationHint === 'manual') ||
+                      f.name === 'PurchaseOrchestartionFlow'; // known blocked
+      const tagLabel = (f.tags || []).length ? '\n[' + f.tags.join(', ') + ']' : '';
+      const nodeData = {
+        id: 'flow:' + f.name, label: f.name.replace(/Flow$/, '') + tagLabel,
+        nodeType: 'flow', bg: blocked ? C.errorBg : C.flowBg,
+        br: blocked ? C.errorBr : C.flowBr, shape: 'round-rectangle',
+        stateful: String(f.stateful !== false), tags: f.tags || [], raw: f,
+      };
+      if (flowToGroup[f.name]) nodeData.parent = flowToGroup[f.name];
+      els.push({ data: nodeData });
+
+      // Trigger edge — surface the first filter-step predicate if present so that
+      // shared triggers (one channel → many flows) show their routing condition.
+      if (f.trigger && channelSet.has(f.trigger)) {
+        let triggerLabel = 'trigger';
+        const firstFilter = (f.steps || []).find(s => s.type === 'filter' && s.predicate && s.predicate.expression);
+        if (firstFilter) {
+          const expr = String(firstFilter.predicate.expression);
+          // Try to extract a friendly message-type name from common patterns,
+          // e.g. $exists(PaymentInbound) → "PaymentInbound".
+          const m = expr.match(/\$exists\s*\(\s*([A-Za-z_][\w]*)/);
+          triggerLabel = m ? ('trigger when ' + m[1]) : 'trigger [filtered]';
+        }
+        els.push({ data: { source: 'ch:' + f.trigger, target: 'flow:' + f.name, label: triggerLabel, kind: 'trigger', predicate: firstFilter ? firstFilter.predicate : null, flowName: f.name }});
+      }
+
+      // Send/invoke edges from steps (recursive)
+      const walkSteps = (steps) => (steps || []).forEach(s => {
+        if (s.type === 'send' && s.channel && channelSet.has(s.channel) && s.channel !== f.trigger) {
+          els.push({ data: { source: 'flow:' + f.name, target: 'ch:' + s.channel, label: 'send' }});
+        }
+        if (s.type === 'invoke' && s.dependency && depSet.has(s.dependency)) {
+          els.push({ data: { source: 'flow:' + f.name, target: 'dep:' + s.dependency, label: 'invoke' }});
+        }
+        if (s.type === 'execute' && s.codeRef && codeRefToDep[s.codeRef] && depSet.has(codeRefToDep[s.codeRef])) {
+          els.push({ data: { source: 'flow:' + f.name, target: 'dep:' + codeRefToDep[s.codeRef], label: 'execute' }});
+        }
+        // Transform step → mapping node, and mapping → its helper dependencies
+        if (s.type === 'transform' && s.mappingRef && mappingSet.has(s.mappingRef)) {
+          els.push({ data: { source: 'flow:' + f.name, target: 'map:' + s.mappingRef, label: 'transform' }});
+          (mappingToDeps[s.mappingRef] || []).forEach(depName => {
+            if (depSet.has(depName)) {
+              els.push({ data: { source: 'map:' + s.mappingRef, target: 'dep:' + depName, label: 'helper', kind: 'helper' }});
+            }
+          });
+        }
+        // Send in response (same channel as trigger for request-reply)
+        if (s.type === 'send' && s.channel && s.channel === f.trigger) {
+          // request-reply on same channel, skip duplicate
+        }
+        // DLQ wired at step-level errorHandling
+        const stepDlq = s.errorHandling && s.errorHandling.dlq && s.errorHandling.dlq.channel;
+        if (stepDlq && channelSet.has(stepDlq)) {
+          els.push({ data: { source: 'flow:' + f.name, target: 'ch:' + stepDlq, label: 'dlq', kind: 'dlq' }});
+        }
+        walkSteps(s.steps);
+        (s.routes || []).forEach(r => walkSteps(r.steps));
+      });
+      walkSteps(f.steps);
+
+      // DLQ wired at flow-level errorHandling
+      const flowDlq = f.errorHandling && f.errorHandling.dlq && f.errorHandling.dlq.channel;
+      if (flowDlq && channelSet.has(flowDlq)) {
+        els.push({ data: { source: 'flow:' + f.name, target: 'ch:' + flowDlq, label: 'dlq', kind: 'dlq' }});
+      }
+    });
+
+    // Infer external systems from inbound/outbound channels not internally consumed
+    const externalIn = new Set();
+    const externalOut = new Set();
+    (ir.channels || []).forEach(ch => {
+      if (ch.direction === 'inbound') {
+        const label = inferExternalName(ch);
+        const id = 'ext:in:' + ch.name;
+        if (!els.find(e => e.data.id === id)) {
+          els.push({ data: { id, label, nodeType: 'external', bg: C.externalBg, br: C.externalBr, shape: 'round-rectangle', raw: { inferred: true, fromChannel: ch.name } }});
+          els.push({ data: { source: id, target: 'ch:' + ch.name }});
+        }
+      }
+      if (ch.direction === 'outbound' && !ch.name.includes('dlq')) {
+        const label = inferExternalName(ch);
+        const id = 'ext:out:' + ch.name;
+        if (!els.find(e => e.data.id === id)) {
+          els.push({ data: { id, label, nodeType: 'external', bg: C.externalBg, br: C.externalBr, shape: 'round-rectangle', raw: { inferred: true, fromChannel: ch.name } }});
+          els.push({ data: { source: 'ch:' + ch.name, target: id }});
+        }
+      }
+    });
+
+    initCy(els, { name: 'dagre', rankDir: 'LR', nodeSep: 50, rankSep: 100, edgeSep: 20 }, [
+      { selector: ':parent', style: {
+        'text-valign': 'top', 'text-halign': 'center',
+        'font-size': '13px', 'font-weight': 'bold',
+        'text-wrap': 'none',
+        'color': '#ffffff',
+        'padding': '20px',
+        'border-width': 2, 'border-style': 'dashed',
+        'background-opacity': 0.15,
+        'text-margin-y': 10,
+        'text-background-color': 'data(br)',
+        'text-background-opacity': 0.85,
+        'text-background-padding': '5px',
+        'text-background-shape': 'roundrectangle',
+      }},
+    ]);
+    setLegend([
+      { color: C.externalBg, border: C.externalBr, label: 'External System' },
+      { color: C.channelBg, border: C.channelBr, label: 'Channel' },
+      { color: C.flowBg, border: C.flowBr, label: 'Flow (grouped by INT-NNN)' },
+      { color: C.depBg, border: C.depBr, label: 'Dependency' },
+      { color: C.mapBg, border: C.mapBr, label: 'Mapping' },
+      { color: C.errorBg, border: C.errorBr, label: 'Blocked Flow' },
+    ]);
+    applyFilters();
+  }
+
+  function inferExternalName(ch) {
+    const kindMap = { http: 'HTTP Client', queue: 'Queue Source', blob: 'Blob Storage', topic: 'Topic', timer: 'Timer', eventgrid: 'Event Grid' };
+    const dir = ch.direction === 'inbound' ? ' (source)' : ' (dest)';
+    return (kindMap[ch.kind] || ch.kind) + dir;
+  }
+
+  /* ── 2. Flow Detail View ───────────────────────────────────────── */
+  function renderFlowSummary(flow) {
+    const panel = $('#flowSummary');
+    const chip = (label, val, color) => {
+      if (val === undefined || val === null || val === '') return '';
+      const bg = color || '#2a2a3e';
+      return '<span style="display:inline-block;margin:2px 6px 2px 0;padding:3px 8px;border-radius:10px;background:' + bg + ';color:#cfd6e4;font-size:11px;">' + escHtml(label) + ': <b>' + escHtml(String(val)) + '</b></span>';
+    };
+    let html = '';
+    // Identity
+    html += chip('flow', flow.name, '#1f3a5f');
+    if (flow.tags && flow.tags.length) html += chip('tags', flow.tags.join(', '), '#1f3a5f');
+    html += chip('stateful', flow.stateful !== false ? 'true' : 'false');
+    if (flow.trigger) html += chip('trigger', flow.trigger);
+
+    // Error handling
+    const eh = flow.errorHandling || {};
+    if (eh.retry) {
+      const r = eh.retry;
+      const txt = [r.policy, r.count !== undefined ? ('×' + r.count) : '', r.interval ? ('@' + r.interval) : ''].filter(Boolean).join(' ');
+      html += chip('retry', txt, '#3a2a1f');
+    }
+    if (eh.dlq && eh.dlq.channel) html += chip('dlq', eh.dlq.channel, '#5f1f1f');
+    if (eh.timeout) html += chip('timeout', eh.timeout, '#3a2a1f');
+
+    // Tracking / SLO
+    if (Array.isArray(flow.tracked) && flow.tracked.length) {
+      html += chip('tracked', flow.tracked.map(t => t.name).join(', '), '#1f3a3f');
+    }
+    if (flow.slo) {
+      Object.entries(flow.slo).forEach(([k, v]) => { html += chip('slo.' + k, v, '#1f3a3f'); });
+    }
+    if (flow.errorBudget) html += chip('errorBudget', JSON.stringify(flow.errorBudget), '#1f3a3f');
+
+    // Migration
+    const blocked = (flow.steps || []).some(s => s.migrationHint === 'manual');
+    if (blocked) html += chip('migration', 'BLOCKED (manual step)', '#5f1f1f');
+
+    if (flow.description) {
+      html += '<div style="margin-top:8px;color:#9090a8;font-style:italic;">' + escHtml(flow.description) + '</div>';
+    }
+
+    panel.innerHTML = html;
+    panel.style.display = 'block';
+  }
+
+  function renderFlowDetail(flow) {
+    currentView = 'flow';
+    currentFlow = flow;
+    updateViewButtons();
+    $('#emptyState').style.display = 'none';
+    $('#cy').style.display = 'block';
+    $('#breadcrumb').style.display = 'block';
+    $('#bcFlow').textContent = flow.name;
+    closeSidebar();
+
+    // Flow-level summary header — surfaces metadata that doesn't fit on the canvas
+    renderFlowSummary(flow);
+
+    const els = [];
+    const steps = flow.steps || [];
+
+    const shapeMap = {
+      receive: 'ellipse', transform: 'round-rectangle', router: 'hexagon',
+      send: 'round-rectangle', invoke: 'octagon', execute: 'round-rectangle',
+      enrich: 'round-rectangle', filter: 'hexagon', splitter: 'vee',
+      aggregator: 'concave-hexagon', claimCheck: 'barrel',
+      wireTap: 'tag', throttler: 'round-octagon', saga: 'star',
+    };
+    const bgMap = {
+      receive: C.channelBg, transform: C.mapBg, router: C.routeBg,
+      send: C.channelBg, invoke: C.depBg, execute: C.depBg,
+      enrich: C.mapBg, filter: C.routeBg, splitter: C.routeBg,
+      aggregator: C.routeBg, claimCheck: C.pipeBg, wireTap: C.pipeBg,
+    };
+    const brMap = {
+      receive: C.channelBr, transform: C.mapBr, router: C.routeBr,
+      send: C.channelBr, invoke: C.depBr, execute: C.depBr,
+      enrich: C.mapBr, filter: C.routeBr, splitter: C.routeBr,
+      aggregator: C.routeBr, claimCheck: C.pipeBr, wireTap: C.pipeBr,
+    };
+
+    // Build mapping name → source/target message lookup
+    const mapMsgs = {};
+    (ir.mappings || []).forEach(mp => {
+      if (mp.source && mp.source.messageRef && mp.target && mp.target.messageRef) {
+        mapMsgs[mp.name] = { src: mp.source.messageRef, tgt: mp.target.messageRef };
+      }
+    });
+
+    // Build channel name → payload-format string lookup.
+    // Sources, in priority order:
+    //   1. channel.binding.wireFormat   (explicit, e.g. "flat-file")
+    //   2. channel.binding.contentType  (e.g. "application/xml")
+    //   3. message.format               (when a transform/mapping in this flow binds a
+    //                                    message to this channel via mapping source/target)
+    const channelFormat = {};
+    const friendlyFmt = (raw) => {
+      if (!raw) return '';
+      const v = String(raw).toLowerCase();
+      if (v.includes('flat')) return 'flat-file';
+      if (v.includes('xml')) return 'xml';
+      if (v.includes('json')) return 'json';
+      if (v.includes('csv')) return 'csv';
+      if (v.includes('edi')) return 'edi';
+      if (v.includes('avro')) return 'avro';
+      if (v.includes('proto')) return 'protobuf';
+      if (v.includes('text') || v.includes('plain')) return 'text';
+      if (v.includes('binary') || v.includes('octet')) return 'binary';
+      return v;
+    };
+    (ir.channels || []).forEach(ch => {
+      const b = ch.binding || {};
+      const fmt = friendlyFmt(b.wireFormat || b.contentType || ch.format);
+      if (fmt) channelFormat[ch.name] = fmt;
+    });
+    // Fall back to the message bound via mappings (limited to this flow)
+    const msgByName = {};
+    (ir.messages || []).forEach(m => { msgByName[m.name] = m; });
+    const mappingByName = {};
+    (ir.mappings || []).forEach(m => { mappingByName[m.name] = m; });
+    steps.forEach(s => {
+      if (s.type === 'transform' && s.mappingRef && mappingByName[s.mappingRef]) {
+        const mp = mappingByName[s.mappingRef];
+        // upstream channel — most recent receive step before this transform
+        const idx = steps.indexOf(s);
+        for (let i = idx - 1; i >= 0; i--) {
+          if (steps[i].type === 'receive' && steps[i].channel && !channelFormat[steps[i].channel]) {
+            const srcMsg = mp.source && msgByName[mp.source.messageRef];
+            if (srcMsg && srcMsg.format) channelFormat[steps[i].channel] = friendlyFmt(srcMsg.format);
+            break;
+          }
+        }
+        // downstream channel — first send after this transform
+        for (let i = idx + 1; i < steps.length; i++) {
+          if (steps[i].type === 'send' && steps[i].channel && !channelFormat[steps[i].channel]) {
+            const tgtMsg = mp.target && msgByName[mp.target.messageRef];
+            if (tgtMsg && tgtMsg.format) channelFormat[steps[i].channel] = friendlyFmt(tgtMsg.format);
+            break;
+          }
+        }
+      }
+    });
+
+    steps.forEach(s => {
+      let label = s.id;
+      if (s.type === 'transform' && s.mappingRef) {
+        const m = mapMsgs[s.mappingRef];
+        if (m) label = s.id + '\n' + m.src + ' → ' + m.tgt;
+        else label = s.id + '\n→ ' + s.mappingRef;
+      }
+      else if (s.type === 'receive' && s.channel) {
+        const fmt = channelFormat[s.channel];
+        label = s.id + '\n⟵ ' + s.channel + (fmt ? '\n[' + fmt + ']' : '');
+      }
+      else if (s.type === 'send' && s.channel) {
+        const fmt = channelFormat[s.channel];
+        label = s.id + '\n⟶ ' + s.channel + (fmt ? '\n[' + fmt + ']' : '');
+      }
+      else if (s.type === 'invoke' && s.dependency) label = s.id + '\n⊳ ' + s.dependency;
+      else if (s.type === 'execute' && s.codeRef) {
+        const base = s.codeRef.split('/').pop();
+        // Hoist parser hint when codeRef path indicates a flat-file/xml/json parser sidecar
+        const path = s.codeRef.toLowerCase();
+        let hint = '';
+        if (path.includes('flatfile') || path.includes('flat-file')) hint = 'flat-file decoder';
+        else if (path.includes('xml-parser') || path.includes('xmlparser')) hint = 'xml parser';
+        else if (path.includes('json-parser') || path.includes('jsonparser')) hint = 'json parser';
+        label = s.id + '\n⚙ ' + base + (hint ? '\n[' + hint + ']' : '');
+      }
+
+      const blocked = s.migrationHint === 'manual';
+      els.push({ data: {
+        id: 'step:' + s.id, label,
+        nodeType: 'step', stepType: s.type,
+        bg: blocked ? C.errorBg : (bgMap[s.type] || C.pipeBg),
+        br: blocked ? C.errorBr : (brMap[s.type] || C.pipeBr),
+        shape: shapeMap[s.type] || 'round-rectangle',
+        raw: s,
+      }});
+    });
+
+    // Edges from next and routes
+    steps.forEach(s => {
+      if (s.next) {
+        els.push({ data: { source: 'step:' + s.id, target: 'step:' + s.next }});
+      }
+      if (s.routes) {
+        s.routes.forEach(r => {
+          let lbl = '';
+          if (r.when) {
+            if (typeof r.when === 'string') lbl = r.when;
+            else if (r.when.description) lbl = r.when.description;
+            else if (r.when.expression) lbl = r.when.expression;
+          }
+          if (r.default) lbl = 'default';
+          els.push({ data: { source: 'step:' + s.id, target: 'step:' + r.next, label: lbl }});
+        });
+      }
+    });
+
+    // DLQ — render the flow-level dead-letter channel as a node + edge from every send/transform step
+    const flowDlq = flow.errorHandling && flow.errorHandling.dlq && flow.errorHandling.dlq.channel;
+    if (flowDlq) {
+      els.push({ data: {
+        id: 'dlq:' + flowDlq, label: 'DLQ\n' + flowDlq,
+        nodeType: 'dlq', bg: C.errorBg, br: C.errorBr, shape: 'round-rectangle',
+        raw: flow.errorHandling,
+      }});
+      // Single edge from the flow's terminal step (last step with no `next`) to the DLQ.
+      const terminal = steps.find(s => !s.next && (!s.routes || s.routes.length === 0));
+      if (terminal) {
+        els.push({ data: { source: 'step:' + terminal.id, target: 'dlq:' + flowDlq, label: 'on-error', kind: 'dlq' }});
+      }
+    }
+
+    // Mapping helper dependencies — show inline next to the transform step
+    const baseNoExt = (p) => {
+      if (!p) return '';
+      const b = String(p).split(/[\\/]/).pop();
+      return b.replace(/\.[^.]+$/, '');
+    };
+    const depByMappingBase = {};
+    (ir.dependencies || []).forEach(d => {
+      const k = baseNoExt(d.codeRef);
+      if (k) (depByMappingBase[k] = depByMappingBase[k] || []).push(d);
+    });
+    const seenHelpers = new Set();
+    steps.forEach(s => {
+      if (s.type !== 'transform' || !s.mappingRef) return;
+      (depByMappingBase[s.mappingRef] || []).forEach(d => {
+        if (!seenHelpers.has(d.name)) {
+          seenHelpers.add(d.name);
+          els.push({ data: {
+            id: 'helper:' + d.name, label: d.name,
+            nodeType: 'helper', bg: C.depBg, br: C.depBr, shape: 'round-rectangle',
+            raw: d,
+          }});
+        }
+        els.push({ data: { source: 'step:' + s.id, target: 'helper:' + d.name, label: 'helper', kind: 'helper' }});
+      });
+    });
+
+    initCy(els, { name: 'dagre', rankDir: 'TB', nodeSep: 50, rankSep: 80, edgeSep: 20 }, [
+      { selector: 'edge', style: { 'text-rotation': 'none', 'font-size': '9px' }}
+    ]);
+    setLegend([
+      { color: C.channelBg, border: C.channelBr, label: 'Receive / Send' },
+      { color: C.mapBg, border: C.mapBr, label: 'Transform / Enrich' },
+      { color: C.routeBg, border: C.routeBr, label: 'Router / Filter' },
+      { color: C.depBg, border: C.depBr, label: 'Invoke / Execute / Helper' },
+      { color: C.errorBg, border: C.errorBr, label: 'Manual / Blocked / DLQ' },
+    ]);
+  }
+
+  /* ── 3. Data Lineage View ──────────────────────────────────────── */
+  function renderLineage() {
+    currentView = 'lineage';
+    currentFlow = null;
+    updateViewButtons();
+    $('#breadcrumb').style.display = 'none';
+    $('#flowSummary').style.display = 'none';
+    closeSidebar();
+
+    // Data lineage traces message → mapping → message transformations. A flow
+    // with no mappings (e.g. a byte-for-byte FTP pass-through) has nothing to
+    // trace — show an explicit empty state instead of a single ballooned node.
+    const traceableMappings = (ir.mappings || []).filter(
+      (mp) => mp.source && mp.source.messageRef && mp.target && mp.target.messageRef,
+    );
+    if (traceableMappings.length === 0) {
+      const mapCount = (ir.mappings || []).length;
+      showEmptyState(
+        'No data lineage to trace',
+        mapCount === 0
+          ? 'This integration has <strong>0 mappings</strong> — a byte-for-byte pass-through, so there are no field/message transformations to trace. Lineage appears for flows that transform one message into another (e.g. a Data Mapper or XSLT map). See <strong>System Context</strong> for the channel flow.'
+          : `Its ${mapCount} mapping(s) don't declare both a source and target message, so no message-to-message lineage can be drawn. See <strong>System Context</strong> for the channel flow.`,
+      );
+      return;
+    }
+
+    $('#emptyState').style.display = 'none';
+    $('#cy').style.display = 'block';
+
+    const els = [];
+    const msgSet = new Set();
+
+    // Build mapping→flow(s) lookup from flows[].steps[].mappingRef
+    const mapToFlows = {};
+    (ir.flows || []).forEach(flow => {
+      const walk = (steps) => (steps || []).forEach(s => {
+        if (s.mappingRef) {
+          (mapToFlows[s.mappingRef] = mapToFlows[s.mappingRef] || []).push(flow.name);
+        }
+        walk(s.steps); // nested steps (branches, loops)
+        (s.routes || []).forEach(r => walk(r.steps));
+      });
+      walk(flow.steps);
+    });
+
+    // Create compound parent nodes for each flow that uses mappings
+    const flowsUsed = new Set();
+    Object.values(mapToFlows).forEach(arr => arr.forEach(f => flowsUsed.add(f)));
+    flowsUsed.forEach(fname => {
+      const f = (ir.flows || []).find(fl => fl.name === fname);
+      const tagLabel = f && (f.tags || []).length ? '  [' + f.tags.join(', ') + ']' : '';
+      const label = fname.replace(/([a-z])([A-Z])/g, '$1 $2') + tagLabel;
+      els.push({ data: {
+        id: 'flow:' + fname, label,
+        nodeType: 'flowGroup', bg: C.flowBg, br: C.flowBr, shape: 'round-rectangle',
+      }});
+    });
+
+    // Messages
+    (ir.messages || []).forEach(msg => {
+      msgSet.add(msg.name);
+      let bg = C.msgBg, br = C.msgBr;
+      if (msg.classification === 'confidential') { bg = C.confBg; br = C.confBr; }
+      if (msg.classification === 'restricted') { bg = C.restrictBg; br = C.restrictBr; }
+
+      let label = splitPascal(msg.name);
+      if (msg.pii) label += '\n🔒 PII';
+
+      els.push({ data: {
+        id: 'msg:' + msg.name, label, nodeType: 'message',
+        bg, br, shape: 'round-rectangle',
+        classification: msg.classification || 'internal',
+        raw: msg,
+      }});
+    });
+
+    // Mappings as intermediate nodes, parented to their flow
+    (ir.mappings || []).forEach(mp => {
+      const srcRef = mp.source && mp.source.messageRef;
+      const tgtRef = mp.target && mp.target.messageRef;
+      if (!srcRef || !tgtRef) return;
+
+      const hint = mp.migrationHint || 'auto';
+      let mbg = C.mapBg, mbr = C.mapBr;
+      if (hint === 'manual') { mbg = C.errorBg; mbr = C.errorBr; }
+      else if (hint === 'azure-function') { mbg = C.depBg; mbr = C.depBr; }
+
+      // Assign to first flow that references this mapping (if any)
+      const parentFlows = mapToFlows[mp.name];
+      const parent = parentFlows && parentFlows.length ? 'flow:' + parentFlows[0] : undefined;
+
+      const nodeData = {
+        id: 'map:' + mp.name, label: splitPascal(mp.name), nodeType: 'mapping',
+        bg: mbg, br: mbr, shape: 'round-rectangle',
+        migrationHint: hint,
+        raw: mp,
+      };
+      if (parent) nodeData.parent = parent;
+
+      els.push({ data: nodeData });
+      els.push({ data: { source: 'msg:' + srcRef, target: 'map:' + mp.name }});
+      els.push({ data: { source: 'map:' + mp.name, target: 'msg:' + tgtRef }});
+    });
+
+    initCy(els, { name: 'dagre', rankDir: 'LR', nodeSep: 60, rankSep: 120, edgeSep: 25 }, [
+      { selector: ':parent', style: {
+        'text-valign': 'top', 'text-halign': 'center',
+        'font-size': '13px', 'font-weight': 'bold',
+        'text-wrap': 'none',
+        'color': '#ffffff',
+        'padding': '30px',
+        'border-width': 2,
+        'background-opacity': 0.25,
+        'text-margin-y': 12,
+        'text-background-color': 'data(br)',
+        'text-background-opacity': 0.85,
+        'text-background-padding': '5px',
+        'text-background-shape': 'roundrectangle',
+      }},
+      { selector: 'node[nodeType="mapping"]', style: {
+        'font-size': '10px', 'padding': '10px', 'border-style': 'dashed',
+        'text-max-width': '140px',
+      }},
+      { selector: 'node[nodeType="message"]', style: {
+        'font-size': '11px', 'padding': '14px', 'text-max-width': '130px',
+      }},
+    ]);
+    setLegend([
+      { color: C.msgBg, border: C.msgBr, label: 'Message (internal)' },
+      { color: C.confBg, border: C.confBr, label: 'Message (confidential)' },
+      { color: C.restrictBg, border: C.restrictBr, label: 'Message (restricted)' },
+      { color: C.mapBg, border: C.mapBr, label: 'Mapping' },
+      { color: C.flowBg, border: C.flowBr, label: 'Flow (integration)' },
+    ]);
+    applyFilters();
+  }
+
+  /* ── Node click → sidebar ──────────────────────────────────────── */
+  function onNodeTap(e) {
+    try {
+      const d = e.target.data();
+      console.log('Node tapped:', d.id, d.nodeType);
+
+      // Skip compound parent nodes (integration groups)
+      if (d.nodeType === 'integrationGroup' || d.nodeType === 'flowGroup') return;
+
+      // Click flow in context view → drill into flow detail
+      if (d.nodeType === 'flow' && currentView === 'context') {
+        const flow = (ir.flows || []).find(f => f.name === (d.raw && d.raw.name));
+        if (flow) { renderFlowDetail(flow); return; }
+      }
+
+      openSidebar(d);
+    } catch (err) {
+      console.error('onNodeTap error:', err);
+    }
+  }
+
+  /* ── Edge click → sidebar (used to expose trigger predicates etc.) ── */
+  function onEdgeTap(e) {
+    try {
+      const d = e.target.data();
+      const sb = $('#sidebar');
+      const body = $('#sidebarBody');
+      sb.classList.add('open');
+      if (cy) setTimeout(() => cy.resize(), 50);
+      const title = d.kind === 'trigger' ? ('Trigger → ' + (d.flowName || d.target))
+                  : d.kind === 'helper' ? 'Mapping helper'
+                  : d.kind === 'dlq' ? 'DLQ route'
+                  : (d.label || 'Edge');
+      $('#sidebarTitle').textContent = title;
+      let html = '<table>';
+      html += row('From', d.source);
+      html += row('To', d.target);
+      if (d.label) html += row('Label', d.label);
+      if (d.kind) html += row('Kind', d.kind);
+      if (d.predicate) {
+        html += row('Predicate engine', d.predicate.engine || 'jsonata');
+        html += row('Predicate', '<pre style="font-size:11px;white-space:pre-wrap;margin:0;">' + escHtml(d.predicate.expression || '') + '</pre>');
+      }
+      html += '</table>';
+      body.innerHTML = html;
+    } catch (err) {
+      console.error('onEdgeTap error:', err);
+    }
+  }
+
+  function openSidebar(d) {
+    const sb = $('#sidebar');
+    const body = $('#sidebarBody');
+    sb.classList.add('open');
+    if (cy) setTimeout(() => cy.resize(), 50);
+    $('#sidebarTitle').textContent = d.label ? d.label.split('\n')[0] : d.id;
+
+    const raw = d.raw || {};
+    let html = '<table>';
+
+    // Type badge
+    html += row('Type', badge(d.nodeType || d.stepType || '?'));
+
+    // Render all scalar properties
+    const skip = new Set(['name', 'steps', 'routes']);
+    for (const [k, v] of Object.entries(raw)) {
+      if (skip.has(k)) continue;
+      if (v === null || v === undefined) continue;
+
+      if (typeof v === 'object' && !Array.isArray(v)) {
+        html += row(k, '<pre style="font-size:11px;white-space:pre-wrap;margin:0;">' + escHtml(JSON.stringify(v, null, 2)) + '</pre>');
+      } else if (Array.isArray(v)) {
+        if (v.length <= 4 && v.every(x => typeof x === 'string' || typeof x === 'number')) {
+          html += row(k, v.join(', '));
+        } else {
+          html += row(k, '<pre style="font-size:11px;white-space:pre-wrap;margin:0;">' + escHtml(JSON.stringify(v, null, 2)) + '</pre>');
+        }
+      } else {
+        let display = String(v);
+        if (k === 'classification') display = badge(v, classificationBadge(v));
+        else if (k === 'pii' && v === true) display = '<span style="color:#dc3545;font-weight:600;">true 🔒</span>';
+        else if (k === 'idempotencyKey') display = '<span style="color:#4ea1ff;font-weight:600;" title="Article III — idempotency / dedup key">🔑 ' + escHtml(String(v)) + '</span>';
+        else if (k === 'redact') display = badge(v, 'badge-red');
+        else if (k === 'retention') display = '<span title="Article V(c) — retention period">⏳ ' + escHtml(String(v)) + '</span>';
+        else if (k === 'correlationId') display = '<span title="Article IV — correlation id">🔗 ' + escHtml(String(v)) + '</span>';
+        else if (k === 'auth') display = badge(v, v === 'managedIdentity' ? 'badge-green' : 'badge-orange');
+        else if (k === 'migrationHint') display = badge(v, hintBadge(v));
+        else if (k === 'stateful') display = v ? 'Yes' : 'No';
+        html += row(k, display);
+      }
+    }
+
+    // For flows, show step summary
+    if (d.nodeType === 'flow' && raw.steps) {
+      html += '<tr><td colspan="2"><div class="section-title">Steps (' + raw.steps.length + ')</div></td></tr>';
+      raw.steps.forEach((s, i) => {
+        html += row('#' + (i + 1) + ' ' + s.type, s.id + (s.mappingRef ? ' → ' + s.mappingRef : '') + (s.channel ? ' ⟷ ' + s.channel : '') + (s.dependency ? ' ⊳ ' + s.dependency : ''));
+      });
+    }
+
+    // For mappings, show rules
+    if (d.nodeType === 'mapping' && raw.rules) {
+      html += '<tr><td colspan="2"><div class="section-title">Rules (' + raw.rules.length + ')</div></td></tr>';
+      raw.rules.forEach(r => {
+        const src = r.expression || r.source || r.lookup || r.default || '';
+        html += row(r.target, escHtml(String(src)));
+      });
+    }
+
+    html += '</table>';
+
+    // Validation findings for this node (Phase 1)
+    const fs = findingsByNodeId[d.id] || [];
+    if (fs.length) {
+      const onlyS2plus = fs.every(f => f.severity >= 2);
+      html += '<div class="findings-block' + (onlyS2plus ? ' s2only' : '') + '">';
+      html += '<div class="section-title" style="margin-top:0;">Validation findings (' + fs.length + ')</div>';
+      fs.slice().sort((a, b) => a.severity - b.severity).forEach(f => {
+        html += '<div class="row"><span class="rule s' + f.severity + '">' + escHtml(f.ruleId || '?') + '</span> · Sev-' + f.severity +
+          '<div style="color:var(--text);margin-top:2px;">' + escHtml(f.message || '') + '</div></div>';
+      });
+      html += '</div>';
+    }
+
+    body.innerHTML = html;
+  }
+
+  // Integration-level governance panel — the IR's top-level blocks (identity,
+  // nonFunctionals, source/metadata) have no node on the canvas, so they were never
+  // visible. Opened by clicking the integration name in the header.
+  function openIntegrationSidebar() {
+    if (typeof ir === 'undefined' || !ir) return;
+    const sb = $('#sidebar'); const body = $('#sidebarBody');
+    sb.classList.add('open');
+    if (cy) setTimeout(() => cy.resize(), 50);
+    const m = ir.metadata || {};
+    $('#sidebarTitle').textContent = 'Integration: ' + (m.name || '?');
+    let html = '<table>';
+
+    // Provenance + metadata
+    html += '<tr><td colspan="2"><div class="section-title" style="margin-top:0;">Provenance</div></td></tr>';
+    if (ir.source && ir.source.platform) {
+      html += row('scenario', badge(m.scenario || 'migration', 'badge-orange'));
+      html += row('sourcePlatform', badge(ir.source.platform, 'badge-orange'));
+    } else {
+      html += row('scenario', badge(m.scenario || 'greenfield', 'badge-green'));
+    }
+    ['domain', 'owner', 'description'].forEach(k => { if (m[k]) html += row(k, escHtml(String(m[k]))); });
+
+    // Source artifacts (migration only)
+    if (ir.source) {
+      html += '<tr><td colspan="2"><div class="section-title">Source artifacts</div></td></tr>';
+      ['platform', 'artifactsRoot', 'preservedRoot', 'inventoryRef', 'manifestRef'].forEach(k => {
+        if (ir.source[k]) html += row(k, escHtml(String(ir.source[k])));
+      });
+    }
+
+    // Identity (Article V — least privilege)
+    html += '<tr><td colspan="2"><div class="section-title">Identity (Article V — least privilege)</div></td></tr>';
+    const idn = ir.identity || {};
+    if (Object.keys(idn).length === 0) {
+      html += row('identity', '<span style="color:#dc3545;font-weight:600;">none declared</span>');
+    } else {
+      for (const [k, v] of Object.entries(idn)) {
+        if (v && typeof v === 'object') html += row(k, '<pre style="font-size:11px;white-space:pre-wrap;margin:0;">' + escHtml(JSON.stringify(v, null, 2)) + '</pre>');
+        else html += row(k, escHtml(String(v)));
+      }
+    }
+
+    // Non-functionals (Articles IV / V — SLA, observability, retention)
+    html += '<tr><td colspan="2"><div class="section-title">Non-functionals (SLA / observability)</div></td></tr>';
+    const nf = ir.nonFunctionals || {};
+    if (Object.keys(nf).length === 0) {
+      html += row('nonFunctionals', '<span style="color:#9090a8;">none declared</span>');
+    } else {
+      for (const [k, v] of Object.entries(nf)) {
+        if (v && typeof v === 'object') {
+          for (const [k2, v2] of Object.entries(v)) html += row(k + '.' + k2, escHtml(String(v2)));
+        } else {
+          html += row(k, escHtml(String(v)));
+        }
+      }
+    }
+
+    html += '</table>';
+    body.innerHTML = html;
+  }
+
+  function closeSidebar() { $('#sidebar').classList.remove('open'); if (cy) setTimeout(() => cy.resize(), 50); }
+  function row(k, v) { return '<tr><td>' + escHtml(k) + '</td><td>' + v + '</td></tr>'; }
+  function splitPascal(s) { return s.replace(/([a-z])([A-Z])/g, '$1\n$2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1\n$2'); }
+  function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function badge(text, cls) { return '<span class="badge ' + (cls || 'badge-gray') + '">' + escHtml(text) + '</span>'; }
+  function classificationBadge(c) { return { public: 'badge-green', internal: 'badge-blue', confidential: 'badge-orange', restricted: 'badge-red' }[c] || 'badge-gray'; }
+  function hintBadge(h) { return { auto: 'badge-green', 'local-function': 'badge-blue', 'azure-function': 'badge-purple', manual: 'badge-red' }[h] || 'badge-gray'; }
+
+  /* ── Legend ─────────────────────────────────────────────────────── */
+  function setLegend(items) {
+    const el = $('#legendItems');
+    el.innerHTML = items.map(i =>
+      '<div class="legend-item"><div class="legend-swatch" style="background:' + i.color + ';border:2px solid ' + i.border + ';"></div><span>' + i.label + '</span></div>'
+    ).join('');
+  }
+
+  /* ── View buttons ──────────────────────────────────────────────── */
+  $$('#viewButtons .btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.view;
+      if (v === 'context') renderContext();
+      else if (v === 'lineage') renderLineage();
+    });
+  });
+  function updateViewButtons() {
+    $$('#viewButtons .btn').forEach(b => b.classList.remove('active'));
+    const active = currentView === 'flow' ? 'context' : currentView;
+    const btn = document.querySelector('#viewButtons .btn[data-view="' + active + '"]');
+    if (btn) btn.classList.add('active');
+  }
+
+  /* ── Breadcrumb back ───────────────────────────────────────────── */
+  $('#bcBack').addEventListener('click', () => renderContext());
+
+  /* ── Sidebar close ─────────────────────────────────────────────── */
+  $('#sidebarClose').addEventListener('click', closeSidebar);
+
+  /* ── Fit button ────────────────────────────────────────────────── */
+  $('#btnFit').addEventListener('click', () => { if (cy) cy.fit(undefined, 40); });
+
+
+  /* ── PNG export ────────────────────────────────────────────────── */
+  $('#btnExport').addEventListener('click', () => {
+    if (!cy) return;
+    const png = cy.png({ full: true, scale: 2, bg: '#1e1e2e' });
+    const a = document.createElement('a');
+    a.href = png;
+    a.download = 'integration-ir-' + currentView + '.png';
+    a.click();
+  });
+
+  /* ── Search ────────────────────────────────────────────────────── */
+  let searchTimeout;
+  $('#searchBox').addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      if (!cy) return;
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) {
+        cy.elements().removeClass('faded highlight');
+        return;
+      }
+      cy.batch(() => {
+        cy.elements().addClass('faded').removeClass('highlight');
+        const matched = cy.nodes().filter(n => {
+          const label = (n.data('label') || '').toLowerCase();
+          const id = (n.data('id') || '').toLowerCase();
+          return label.includes(q) || id.includes(q);
+        });
+        matched.removeClass('faded').addClass('highlight');
+        matched.connectedEdges().removeClass('faded');
+        matched.neighborhood('node').removeClass('faded');
+      });
+    }, 200);
+  });
+
+  /* ── Filters ───────────────────────────────────────────────────── */
+  $('#btnFilter').addEventListener('click', () => {
+    $('#filterBar').classList.toggle('open');
+  });
+  ['filterTag', 'filterStateful', 'filterClassification', 'filterHint'].forEach(id => {
+    $('#' + id).addEventListener('change', applyFilters);
+  });
+
+  function applyFilters() {
+    if (!cy) return;
+    const ft = $('#filterTag').value;
+    const fs = $('#filterStateful').value;
+    const fc = $('#filterClassification').value;
+    const fh = $('#filterHint').value;
+
+    if (!ft && !fs && !fc && !fh) {
+      cy.elements().removeClass('faded');
+      return;
+    }
+
+    cy.batch(() => {
+      cy.elements().addClass('faded');
+      cy.nodes().forEach(n => {
+        let show = true;
+        const d = n.data();
+        if (ft) {
+          const tags = d.tags || (d.raw && d.raw.tags) || [];
+          if (!tags.includes(ft)) show = false;
+        }
+        if (fs && d.stateful !== undefined && d.stateful !== fs) show = false;
+        if (fc && d.raw) {
+          const cls = d.raw.classification || d.classification;
+          if (cls && cls !== fc) show = false;
+        }
+        if (fh && d.raw) {
+          const hint = d.raw.migrationHint || d.migrationHint;
+          if (hint && hint !== fh) show = false;
+        }
+        if (show) {
+          n.removeClass('faded');
+          n.connectedEdges().removeClass('faded');
+        }
+      });
+    });
+  }
+
+  /* ── Host bridge ───────────────────────────────────────────────────
+     The VS Code extension hosts this file in a webview and pushes data in
+     via postMessage (the webview CSP blocks all fetch, so there is no server
+     round-trip). See tools/vscode-extension/src/visualizer.ts.
+       { type:'load',     ir:'<yaml text>' }      → parse + render the graph
+       { type:'status',   status:{...} }          → drive the toolbar pill
+       { type:'findings', report:{...}|null }     → severity overlay + drawer
+     A single 'load' may also carry status/report for the initial paint. */
+  function applyStatus(status) {
+    currentStatus = status || null;
+    renderStatusPill(currentStatus);
+  }
+  function applyFindings(report) {
+    validationReport = report || null;
+    if (report) {
+      indexFindings(report.findings || []);
+      renderFindingsBar(report);
+    } else {
+      findingsByNodeId = {};
+      unmappedFindings = [];
+      const bar = document.getElementById('findingsBar');
+      if (bar) bar.classList.remove('show');
+    }
+    decorateFindings();
+  }
+
+  window.addEventListener('message', (e) => {
+    const m = e.data || {};
+    if (m.type === 'load' && typeof m.ir === 'string') {
+      if (loadYamlText(m.ir)) {
+        if ('status' in m) applyStatus(m.status);
+        if ('report' in m) applyFindings(m.report);
+      }
+    } else if (m.type === 'status') {
+      applyStatus(m.status);
+    } else if (m.type === 'findings') {
+      applyFindings(m.report);
+    }
+  });
+
+  // No IR until the host pushes one.
+  showEmptyState();
+
+})();
+</script>
+</body>
+</html>

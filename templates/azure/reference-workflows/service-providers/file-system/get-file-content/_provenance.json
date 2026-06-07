@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/getFileContentV2/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "getFileContentV2",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "FileSystem getFileContentV2 — prefer V2 over the deprecated getFileContent for new flows; it includes inferContentType handling. Used as the mandatory follow-up to a FileSystem trigger that returns metadata only (see workflow-json-rules §5.2)."
+}

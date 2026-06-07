@@ -1,0 +1,7 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/ApiConnectionWebhookLogicApp/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Managed-API connection block for ApiConnectionNotification webhook triggers (e.g. Office 365 'on new mention me email'). Pairs with the api-connection-trigger-splitOn/ workflow when the upstream notification body is an array that should debatch. office365 is the canonical example; replace api.id with the actual managed API ID for the connector being subscribed to."
+}

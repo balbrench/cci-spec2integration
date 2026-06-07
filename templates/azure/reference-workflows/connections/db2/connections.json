@@ -1,0 +1,22 @@
+{
+  "serviceProviderConnections": {
+    "DB2ConnectionString": {
+      "parameterValues": {
+        "connectionString": "@appsetting('Db2_connectionString')",
+        "serverName": "@appsetting('Db2_serverName')",
+        "portNumber": "@appsetting('Db2_portNumber')",
+        "database": "@appsetting('Db2_database')",
+        "userName": "@appsetting('Db2_userName')",
+        "password": "@appsetting('Db2_password')",
+        "hostCCSID": "@appsetting('Db2_hostCCSID')",
+        "pcCodePage": "@appsetting('Db2_pcCodePage')",
+        "packageCollection": "@appsetting('Db2_packageCollection')",
+        "defaultSchema": "@appsetting('Db2_defaultSchema')",
+        "additionalValues": "@appsetting('Db2_additionalValues')"
+      },
+      "serviceProvider": {
+        "id": "serviceProviders/DB2"
+      }
+    }
+  }
+}

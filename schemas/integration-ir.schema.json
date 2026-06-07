@@ -1,0 +1,1367 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec2integration.dev/schemas/integration-ir.schema.json",
+  "title": "Integration IR",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "channels", "messages", "flows"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "metadata": {
+            "properties": { "scenario": { "const": "migration" } },
+            "required": ["scenario"]
+          }
+        },
+        "required": ["metadata"]
+      },
+      "then": {
+        "required": ["source"],
+        "properties": {
+          "source": { "required": ["platform", "artifactsRoot"] }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "metadata": {
+            "properties": { "scenario": { "const": "greenfield" } },
+            "required": ["scenario"]
+          }
+        },
+        "required": ["metadata"]
+      },
+      "then": {
+        "not": { "required": ["source"] }
+      }
+    }
+  ],
+  "properties": {
+    "apiVersion": { "const": "spec2integration/v1" },
+    "kind": { "const": "Integration" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "domain", "owner", "scenario"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "domain": { "type": "string" },
+        "owner": { "type": "string" },
+        "description": { "type": "string" },
+        "scenario": {
+          "description": "Required top-level mode indicator for the IR. 'migration' = brownfield / reverse-engineered from a source platform; preserved artifacts under source.artifactsRoot are copied byte-for-byte (Article II.a). 'greenfield' = authored from PRD; no source artifacts to preserve.",
+          "enum": ["migration", "greenfield"]
+        },
+        "sourcePlatform": {
+          "description": "Echo of source.platform at metadata level for quick agent lookup. When metadata.scenario is 'migration', this MUST equal source.platform.",
+          "enum": ["biztalk", "mulesoft", "tibco", "boomi", "informatica", "ssis", "greenfield"]
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "description": "Provenance of this integration. Reverse-engineered integrations (BizTalk, MuleSoft, TIBCO, Boomi, ...) MUST populate this so platform packs can apply source-aware fast paths — e.g. for `platform: biztalk` the Azure pack consumes flat-file XSDs verbatim (preserving `b:` annotations) via `FlatFileDecoding`/`FlatFileEncoding`, runs BizTalk-compiled XSLT (including `<msxsl:script>` / `userCSharp`) as-is via the `Xslt` action, and treats a missing `nativeSchemaRef` / `mappings[].codeRef` as Sev-1 rather than silently degrading. Greenfield integrations MUST NOT include this block.",
+      "required": ["platform"],
+      "additionalProperties": false,
+      "properties": {
+        "platform": {
+          "enum": ["biztalk", "mulesoft", "tibco", "boomi", "informatica", "ssis", "greenfield"]
+        },
+        "artifactsRoot": {
+          "type": "string",
+          "description": "Folder (relative to the integration folder) that holds extracted native artifacts (XSDs, XSLTs, ODX, BTP, helper .cs). `messages[].nativeSchemaRef` and `mappings[].codeRef` resolve against this root when not absolute. For BizTalk this is typically `specs/biztalk/_extracted/` (msi-cracker output) or `artifacts/custom/`."
+        },
+        "preservedRoot": {
+          "type": "string",
+          "description": "Optional absolute or relative path to the root of the original source-platform solution (e.g. C:/Projects/BizTalk-Combined). When set, `messages[].nativeSchemaSource.path` and `mappings[].sourceArtifact.*` paths are resolved against this root in preference to artifactsRoot."
+        },
+        "inventoryRef": {
+          "type": "string",
+          "description": "Optional path to the source-platform inventory file (e.g. `specs/biztalk/biztalk-inventory.md`)."
+        },
+        "manifestRef": {
+          "type": "string",
+          "description": "Optional path to a machine-readable manifest of extracted artifacts (e.g. `specs/biztalk/_extracted/_manifest.json` from biztalk-msi-cracker)."
+        }
+      }
+    },
+    "channels": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/channel" }
+    },
+    "messages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/message" }
+    },
+    "mappings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/mapping" }
+    },
+    "endpoints": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/endpoint" }
+    },
+    "flows": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/flow" }
+    },
+    "errorHandling": { "$ref": "#/$defs/errorHandling" },
+    "identity": { "$ref": "#/$defs/identity" },
+    "nonFunctionals": { "$ref": "#/$defs/nonFunctionals" },
+    "dependencies": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dependency" }
+    }
+  },
+  "$defs": {
+    "oauth2Auth": {
+      "type": "object",
+      "required": ["type", "issuer", "audience", "scopes"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "oauth2" },
+        "issuer": {
+          "type": "string",
+          "format": "uri",
+          "description": "Token issuer URI (e.g. https://login.microsoftonline.com/<tenant>/v2.0)."
+        },
+        "audience": {
+          "type": "string",
+          "description": "The OAuth2 audience / resource identifier the access token must be issued for."
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "List of OAuth2 scopes required by this channel."
+        },
+        "clientCredentials": {
+          "type": "object",
+          "description": "Optional client-credentials hint. clientId is a param reference; clientSecret must be a secret-store reference, never a literal.",
+          "required": ["clientIdRef", "clientSecretRef"],
+          "additionalProperties": false,
+          "properties": {
+            "clientIdRef": { "type": "string", "description": "Parameter or environment variable name holding the client ID." },
+            "clientSecretRef": { "type": "string", "description": "Secret-store reference (e.g. Key Vault URI). Never a literal value." }
+          }
+        }
+      }
+    },
+    "channel": {
+      "type": "object",
+      "required": ["name", "kind", "direction"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "tags": {
+          "description": "Free-form labels for cross-referencing (e.g. catalogue IDs like INT-001, domain tags). Agents and visualizers use these to correlate artifacts across pipeline stages.",
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "kind": { "enum": ["http", "queue", "topic", "blob", "timer", "eventgrid"] },
+        "direction": { "enum": ["inbound", "outbound"] },
+        "auth": {
+          "description": "Authentication scheme for this channel. Either a well-known enum value or an OAuth2 configuration object.",
+          "default": "managedIdentity",
+          "oneOf": [
+            { "enum": ["managedIdentity", "apiKey", "none"] },
+            { "$ref": "#/$defs/oauth2Auth" }
+          ]
+        },
+        "schemaRef": { "type": "string" },
+        "path": { "type": "string" },
+        "subscription": {
+          "description": "Topic subscription. Legacy string form keeps the subscription name; object form adds a broker-native filter (SQL, correlation, or header). Packs compile the filter to the platform's subscription rule (Service Bus SQL filter, SNS filter policy, etc.).",
+          "oneOf": [
+            { "type": "string" },
+            {
+              "type": "object",
+              "required": ["name"],
+              "additionalProperties": false,
+              "properties": {
+                "name": { "type": "string" },
+                "filter": {
+                  "type": "object",
+                  "required": ["kind", "expression"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": { "enum": ["sql", "correlation", "header"] },
+                    "expression": { "type": "string" }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "binding": {
+          "description": "Broker-native metadata. Shape depends on channel.kind. Unsupported fields must be surfaced by packs as Sev-2 'feature not supported by pack' findings rather than silently dropped. See docs/ir-spec.md 'Channel bindings cookbook' for kind-specific fields.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "consumer": {
+          "description": "Selective- and competing-consumer controls on inbound queue/topic channels. count is the number of concurrent consumer instances (defaults to the pack baseline); selector is a JSONata / SQL filter evaluated on the message envelope.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "count": { "type": "integer", "minimum": 1 },
+            "selector": { "type": "string" }
+          }
+        },
+        "delivery": {
+          "description": "Delivery guarantee for this channel. Packs must compile it to the closest native primitive and ir-validator rejects exactly-once on brokers that can't support it (http, eventgrid).",
+          "enum": ["at-most-once", "at-least-once", "exactly-once"],
+          "default": "at-least-once"
+        },
+        "ordering": {
+          "description": "Message ordering guarantee. 'byKey' partitions by orderingKey/sessionKey; 'fifo' is global order; 'none' imposes no order.",
+          "enum": ["none", "fifo", "byKey"],
+          "default": "none"
+        },
+        "orderingKey": {
+          "description": "Body path (e.g. 'body.orderId') or header name (e.g. 'X-Session-Id') used to partition messages when ordering is 'byKey'. Required by ir-validator whenever ordering is 'byKey'.",
+          "type": "string"
+        },
+        "sessionKey": {
+          "description": "Broker session key (Service Bus, JMS). Acts as an alias for ordering=byKey on session-aware brokers; packs may set it alongside orderingKey.",
+          "type": "string"
+        },
+        "ack": {
+          "description": "Acknowledgement mode for a consumer on a queue/topic channel. 'peekLock' is the safe default on Service Bus / Kafka pull; 'manual' requires the flow to settle explicitly; 'auto' settles on receive.",
+          "enum": ["auto", "peekLock", "manual"],
+          "default": "peekLock"
+        },
+        "concurrency": {
+          "description": "Consumer concurrency controls for inbound queue/topic channels.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prefetch": { "type": "integer", "minimum": 0 },
+            "maxConcurrent": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "maxDeliveryCount": {
+          "description": "Broker-level redelivery limit before the message is dead-lettered. Distinct from errorHandling.retry.count (which is flow-level).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "ttl": {
+          "description": "Channel-level default message time-to-live as an ISO-8601 duration (e.g. PT1H, P7D).",
+          "type": "string",
+          "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$"
+        },
+        "retention": {
+          "description": "How long the broker retains messages on this channel as an ISO-8601 duration (e.g. P30D). Article V compliance hook — used by reviewer to check PRD retention clauses.",
+          "type": "string",
+          "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$"
+        },
+        "classification": {
+          "description": "Data classification of messages crossing this channel. Overrides message-level classification when present; the stricter of the two wins during review.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "not": {
+              "properties": { "schemaLanguage": { "const": "none" } },
+              "required": ["schemaLanguage"]
+            }
+          },
+          "then": { "required": ["schemaRef"] }
+        }
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "tags": {
+          "description": "Free-form labels for cross-referencing (e.g. catalogue IDs like INT-001).",
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "schemaRef": { "type": "string" },
+        "nativeSchemaRef": {
+          "description": "DEPRECATED — alias of nativeSchemaSource.path with implicit origin: preserved. Kept for back-compat with greenfield-era IRs. New IRs MUST use nativeSchemaSource. Path to the original native schema (XSD, flat-file XSD, EDI XSD, Avro .avsc, Protobuf .proto) relative to the integration folder.",
+          "type": "string"
+        },
+        "nativeSchemaSource": {
+          "description": "Replacement for nativeSchemaRef. Declares whether the runtime schema artifact is preserved verbatim from the source platform (origin: preserved) or generated by the pipeline (origin: generated). path is resolved against source.preservedRoot when present, otherwise source.artifactsRoot, otherwise the IR file folder.",
+          "type": "object",
+          "required": ["origin", "path"],
+          "additionalProperties": false,
+          "properties": {
+            "origin": { "enum": ["preserved", "generated"] },
+            "path":   { "type": "string" }
+          }
+        },
+        "contentType": { "type": "string", "default": "application/json" },
+        "format": {
+          "description": "Wire format of the message body. Packs use this to pick the right parser/serializer and the default mapping engine.",
+          "enum": [
+            "json",
+            "xml",
+            "csv",
+            "edi-x12",
+            "edifact",
+            "avro",
+            "protobuf",
+            "flat-file",
+            "text",
+            "binary"
+          ],
+          "default": "json"
+        },
+        "encoding": {
+          "description": "Character or binary encoding of the body. Defaults to utf-8 for text formats.",
+          "enum": ["utf-8", "utf-16", "iso-8859-1", "us-ascii", "base64", "binary"],
+          "default": "utf-8"
+        },
+        "schemaLanguage": {
+          "description": "Language of the document referenced by schemaRef. Informs the validator a pack must run.",
+          "enum": ["json-schema", "xsd", "avro-schema", "protobuf-schema", "flat-file-schema", "none"],
+          "default": "json-schema"
+        },
+        "headers": {
+          "description": "Message metadata that lives outside the body (e.g. Service Bus / AMQP properties, HTTP headers, Kafka headers).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/messageHeader" }
+        },
+        "examples": {
+          "description": "Named example payloads. Each path is resolved relative to the IR file.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "path"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "path": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "idempotencyKey": {
+          "description": "Body path (e.g. 'body.orderId') or header name (e.g. 'X-Idempotency-Key') that uniquely identifies this message for de-duplication. Required by Article III on any message consumed from an external source.",
+          "type": "string"
+        },
+        "dedupWindow": {
+          "description": "How long a consumer must remember the idempotencyKey, as an ISO-8601 duration (e.g. PT10M, P1D).",
+          "type": "string",
+          "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$"
+        },
+        "correlationId": {
+          "description": "Body path or header name carrying the end-to-end correlation id. Structural (not header-only) so flows can reference it uniformly across transports.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Semver of this message contract. Bump when mapping a breaking change.",
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$"
+        },
+        "compatibility": {
+          "description": "Schema evolution policy for this message (Confluent-style): backward = new readers can read old data; forward = old readers can read new data; full = both; none = breaking changes allowed.",
+          "enum": ["backward", "forward", "full", "none"]
+        },
+        "classification": {
+          "description": "Data classification for the whole message body. Mapping rules may override per field.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "pii": {
+          "description": "Whether this message, as a whole, carries personally-identifiable information. Per-field overrides live on mapping rules.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "messageHeader": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "enum": ["string", "integer", "number", "boolean", "datetime", "uuid"] },
+        "required": { "type": "boolean", "default": false },
+        "source": {
+          "description": "Where the pack should populate this header from.",
+          "enum": ["literal", "body", "requestHeader", "context", "generated"],
+          "default": "literal"
+        },
+        "value": {
+          "description": "Literal value, JSONata expression, or body path. Interpretation depends on source.",
+          "type": "string"
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "mapping": {
+      "type": "object",
+      "required": ["name", "source", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Za-z0-9]*$",
+          "description": "PascalCase mapping identifier, referenced from flow steps via mappingRef."
+        },
+        "tags": {
+          "description": "Free-form labels for cross-referencing (e.g. catalogue IDs like INT-001).",
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "description": { "type": "string" },
+        "source": { "$ref": "#/$defs/mappingEnd" },
+        "target": { "$ref": "#/$defs/mappingEnd" },
+        "engine": {
+          "description": "Transformation language the mapping is expressed in. Default JSONata; packs must compile to a platform-native equivalent. Use 'custom' when the mapping is expressed in source-platform code (scripting functoid, DataWeave, Groovy, etc.) that cannot be represented in a standard engine.",
+          "enum": ["jsonata", "jslt", "xslt", "liquid", "expression", "custom"],
+          "default": "jsonata"
+        },
+        "expression": {
+          "description": "Whole-document transformation in the chosen engine. Mutually exclusive with rules and codeRef.",
+          "type": "string"
+        },
+        "rules": {
+          "description": "Field-level rules. Mutually exclusive with expression and codeRef. Used when a per-field mapping table is clearer than a single expression.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/mappingRule" }
+        },
+        "codeRef": {
+          "description": "Path to the extracted source-code artifact (relative to the IR file). Required when engine is 'custom'. The file is stored in the repo for audit and as input to reverse-engineering tooling.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "Execution environment required by the custom code. Used by packs to decide how to wrap or invoke it.",
+          "enum": ["dotnet", "java", "js", "python", "xslt-ext", "bre"]
+        },
+        "migrationHint": {
+          "description": "Pack-facing migration verdict set by the reverse-engineering agent. 'preserve' = do not regenerate, copy verbatim from sourceArtifact (requires origin: preserved); 'auto' = pack can compile natively; 'local-function' = emit an in-process function wrapper; 'azure-function' = sidecar required (Sev-2 finding); 'manual' = STRUCTURAL blocker, pack must not emit output for this flow.",
+          "enum": ["preserve", "auto", "local-function", "azure-function", "manual"]
+        },
+        "origin": {
+          "description": "Whether this mapping is preserved from the source platform (origin: preserved — compiler MUST copy sourceArtifact verbatim and apply only the declared transforms[<target>] adapter; in-IR `rules` are documentation only) or authored by the pipeline (origin: authored — compiler MUST compile rules/expression to a platform-native transform).",
+          "enum": ["preserved", "authored"]
+        },
+        "sourceArtifact": {
+          "description": "Typed alternative to codeRef. Each property names a source-platform artifact format and points to the file (resolved against source.preservedRoot then source.artifactsRoot). Required when origin is 'preserved' (at least one of sourceArtifact or codeRef).",
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "btm":    { "type": "string", "description": "BizTalk map (.btm)." },
+            "xslt":   { "type": "string", "description": "XSLT 1.0/2.0/3.0 stylesheet. May be a file:// URI when the artifact lives outside the workspace." },
+            "dwl":    { "type": "string", "description": "MuleSoft DataWeave (.dwl)." },
+            "groovy": { "type": "string", "description": "Groovy script (Boomi, TIBCO)." },
+            "jslt":   { "type": "string", "description": "JSLT transform." },
+            "liquid": { "type": "string", "description": "Liquid template." },
+            "csharp": { "type": "string", "description": "C# source (helper class, scripting functoid extract)." }
+          }
+        },
+        "transforms": {
+          "description": "Per-target compilation strategy, keyed by target platform pack id (e.g. logic_apps_standard, mulesoft, azure_functions). Value names the adapter the pack applies to sourceArtifact: 'passthrough' = copy unchanged; 'xslt_to_dataweave' = re-express as DataWeave; 'xslt_to_local_function' = wrap in an in-proc .NET local function; 'xslt_to_azure_function' = host as a sidecar Azure Function; 'regenerate' = compiler regenerates from in-IR rules.",
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["passthrough", "xslt_to_dataweave", "xslt_to_local_function", "xslt_to_azure_function", "regenerate"]
+          }
+        },
+        "parameters": {
+          "description": "External transform parameters with workflow bindings. Each entry declares an input the preserved transform expects (e.g. an XSLT global parameter) and the workflow expression that supplies the value at runtime.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "binding"],
+            "additionalProperties": false,
+            "properties": {
+              "name":        { "type": "string", "description": "Parameter name as referenced inside the transform (e.g. an XSLT <xsl:param name=\"...\"/>)." },
+              "binding":     { "type": "string", "description": "Workflow expression supplying the value (e.g. '@{utcNow()}', '@{triggerBody()?.OrderId}')." },
+              "type":        { "enum": ["string", "integer", "number", "boolean", "datetime"], "default": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "lookups": {
+          "description": "Reference tables usable from rules via `lookup: <name>` or from expressions via $lookup('name', key).",
+          "type": "array",
+          "items": { "$ref": "#/$defs/mappingLookup" }
+        },
+        "tests": {
+          "description": "Golden-file tests executed by packs (and CI) to prove a mapping produces the expected target shape.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/mappingTest" }
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["expression"],
+          "not": { "anyOf": [{ "required": ["rules"] }, { "required": ["codeRef"] }] }
+        },
+        {
+          "required": ["rules"],
+          "not": { "anyOf": [{ "required": ["expression"] }, { "required": ["codeRef"] }] }
+        },
+        {
+          "required": ["codeRef"],
+          "not": { "anyOf": [{ "required": ["expression"] }, { "required": ["rules"] }] }
+        }
+      ],
+      "allOf": [
+        {
+          "if": { "properties": { "origin": { "const": "preserved" } }, "required": ["origin"] },
+          "then": {
+            "anyOf": [
+              { "required": ["sourceArtifact"] },
+              { "required": ["codeRef"] }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "migrationHint": { "const": "preserve" } }, "required": ["migrationHint"] },
+          "then": { "properties": { "origin": { "const": "preserved" } }, "required": ["origin"] }
+        }
+      ]
+    },
+    "mappingEnd": {
+      "type": "object",
+      "required": ["messageRef"],
+      "additionalProperties": false,
+      "properties": {
+        "messageRef": {
+          "type": "string",
+          "description": "Must match an entry in messages[].name."
+        },
+        "contentPath": {
+          "type": "string",
+          "description": "Optional path into the referenced message (e.g. `body`, `body.order`, `/Envelope/Body/Order`)."
+        }
+      }
+    },
+    "mappingRule": {
+      "type": "object",
+      "required": ["target"],
+      "additionalProperties": false,
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Dotted path (JSON) or XPath (XML) to the target field this rule writes."
+        },
+        "source": {
+          "type": "string",
+          "description": "Dotted path (JSON) or XPath (XML) on the source document."
+        },
+        "expression": {
+          "type": "string",
+          "description": "Engine expression used to compute the target value. Takes precedence over source+lookup."
+        },
+        "default": {
+          "description": "Literal fallback when source is missing / expression yields null. May be any JSON value."
+        },
+        "condition": {
+          "type": "string",
+          "description": "Engine predicate; rule is only applied when it evaluates truthy."
+        },
+        "lookup": {
+          "type": "string",
+          "description": "Name of a lookup in mappings[].lookups; used when source is a key into a reference table."
+        },
+        "notes": { "type": "string" },
+        "classification": {
+          "description": "Per-field classification override. Stricter than the containing message's classification.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "pii": {
+          "description": "Whether this field carries personally-identifiable information.",
+          "type": "boolean",
+          "default": false
+        },
+        "redact": {
+          "description": "Redaction applied when compiling to a platform-native masking primitive (Logic Apps secure inputs, Boomi mask, MuleSoft obfuscate). Required by pii-flow-checker when a pii field crosses a classification: public boundary.",
+          "enum": ["none", "hash", "mask", "drop"],
+          "default": "none"
+        }
+      },
+      "anyOf": [
+        { "required": ["source"] },
+        { "required": ["expression"] },
+        { "required": ["lookup"] },
+        { "required": ["default"] },
+        { "required": ["redact"] }
+      ]
+    },
+    "mappingLookup": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*$" },
+        "keyType": { "enum": ["string", "integer"], "default": "string" },
+        "valueType": { "enum": ["string", "integer", "number", "boolean"], "default": "string" },
+        "entries": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "integer", "boolean"] }
+        },
+        "sourceRef": {
+          "type": "string",
+          "description": "Path to an external reference-data file (JSON/YAML) containing the lookup table. Mutually exclusive with entries."
+        },
+        "description": { "type": "string" }
+      },
+      "oneOf": [
+        { "required": ["entries"], "not": { "required": ["sourceRef"] } },
+        { "required": ["sourceRef"], "not": { "required": ["entries"] } }
+      ]
+    },
+    "mappingTest": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "input": { "$ref": "#/$defs/inlineOrRef" },
+        "expect": { "$ref": "#/$defs/inlineOrRef" }
+      }
+    },
+    "inlineOrRef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["path"],
+          "additionalProperties": false,
+          "properties": { "path": { "type": "string" } }
+        },
+        {
+          "type": "object",
+          "required": ["inline"],
+          "additionalProperties": false,
+          "properties": { "inline": {} }
+        }
+      ]
+    },
+    "endpoint": {
+      "type": "object",
+      "required": ["name", "channel", "operation"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "channel": { "type": "string" },
+        "operation": { "enum": ["request", "reply", "requestReply"] },
+        "contractRef": { "type": "string" },
+        "method": {
+          "description": "HTTP method for this endpoint. Authoritative over OpenAPI; contract-designer projects it into the OpenAPI document and ir-validator fails on divergence.",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
+        },
+        "path": {
+          "description": "HTTP path (e.g. '/orders'). When the bound channel carries a binding.path, the two must agree.",
+          "type": "string"
+        },
+        "requestBody": {
+          "description": "Request-body descriptor. messageRef must match an entry in messages[].",
+          "type": "object",
+          "required": ["messageRef"],
+          "additionalProperties": false,
+          "properties": {
+            "messageRef": { "type": "string" },
+            "contentTypes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string" }
+            },
+            "required": { "type": "boolean", "default": true },
+            "description": { "type": "string" }
+          }
+        },
+        "responses": {
+          "description": "Keyed by HTTP status code. Each entry may carry a messageRef and content types; contract-designer projects these into OpenAPI responses.",
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[0-9]{3}$": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "messageRef": { "type": "string" },
+                "contentTypes": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        },
+        "parameters": {
+          "description": "Path, query, and header parameters for this endpoint.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["in", "name"],
+            "additionalProperties": false,
+            "properties": {
+              "in": { "enum": ["path", "query", "header"] },
+              "name": { "type": "string" },
+              "schemaRef": { "type": "string" },
+              "required": { "type": "boolean", "default": false },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "idempotencyHeader": {
+          "description": "Header name the endpoint expects to carry the idempotency key (e.g. 'Idempotency-Key'). Packs propagate the inbound message's idempotencyKey into this header.",
+          "type": "string"
+        },
+        "rateLimit": {
+          "description": "Endpoint-level rate limit. Overrides channel.binding.rateLimit when both are present.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rps": { "type": "integer", "minimum": 1 },
+            "burst": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "cors": {
+          "description": "CORS policy. Packs compile to their native CORS primitive (APIM, Logic Apps, etc.).",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "origins": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "methods": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "headers": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "allowCredentials": { "type": "boolean" }
+          }
+        },
+        "contractTests": {
+          "description": "Optional pact-style producer/consumer fixtures. contract-linter runs them when the pact CLI is on PATH; degrades to a Sev-2 'runtime missing' finding otherwise.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "pactFile"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "role": {
+                "description": "Whether this integration is the pact consumer or provider for the fixture.",
+                "enum": ["consumer", "provider"],
+                "default": "provider"
+              },
+              "pactFile": {
+                "description": "Path to a pact JSON file, resolved relative to the IR.",
+                "type": "string"
+              },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "flow": {
+      "type": "object",
+      "required": ["name", "trigger", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Z][A-Za-z0-9]*Flow$" },
+        "tags": {
+          "description": "Free-form labels for cross-referencing (e.g. catalogue IDs like INT-001).",
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "stateful": { "type": "boolean", "default": true },
+        "implementation": {
+          "description": "Target compute host for this flow on the active platform pack. Set by the target-architecture agent based on ais-platform / data-factory / azure-functions / batch-processing skills, then consumed by the platform pack's /implement-* prompt to dispatch the right compiler. When absent, packs default to their primary host (Azure pack -> logic-app-standard).",
+          "type": "object",
+          "required": ["host"],
+          "additionalProperties": false,
+          "properties": {
+            "host": {
+              "description": "Compiler dispatch key. logic-app-standard = azure-logic-apps-compiler; function-app = azure-functions-compiler (stand-alone .NET 8 isolated worker); data-factory = azure-data-factory-compiler. Other values reserved for future packs.",
+              "enum": ["logic-app-standard", "function-app", "data-factory", "container-app", "synapse-pipeline"]
+            },
+            "hostingPlan": {
+              "description": "Plan SKU for function-app host. Ignored for other hosts. See azure-functions skill hosting decision table.",
+              "enum": ["consumption", "flex-consumption", "premium", "dedicated", "container-apps"]
+            },
+            "durablePattern": {
+              "description": "Durable Functions pattern when host=function-app and the flow requires orchestration. See azure-functions and batch-processing skills.",
+              "enum": ["chaining", "fan-out-fan-in", "async-http", "monitor", "human-interaction", "aggregator"]
+            },
+            "rationale": {
+              "description": "One-sentence justification for the host choice, sourced from target-architecture.md.",
+              "type": "string"
+            }
+          }
+        },
+        "trigger": { "type": "string" },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "errorHandling": { "$ref": "#/$defs/errorHandling" },
+        "tests": {
+          "description": "Flow-level test cases executed by flow-tester. Each test drives the flow through the in-process interpreter from a fixture payload and compares emitted messages (and optional DLQ envelope) to the declared expectations.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/flowTest" }
+        },
+        "tracked": {
+          "description": "Business/tracked properties emitted on every run of this flow. Packs compile to native primitives (Logic Apps trackedProperties, OTEL span attributes). Replaces the Azure-only trackedProperties template.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/trackedProperty" }
+        },
+        "metrics": {
+          "description": "Flow-level metrics exported by packs to the platform-native metric sink.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/flowMetric" }
+        },
+        "logSampling": {
+          "description": "Log sampling policy. rate is a probability between 0 (sample nothing) and 1 (sample everything). level is the minimum log level to emit after sampling.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rate": { "type": "number", "minimum": 0, "maximum": 1 },
+            "level": { "enum": ["trace", "debug", "info", "warn", "error"] }
+          }
+        }
+      }
+    },
+    "flowTest": {
+      "type": "object",
+      "required": ["name", "trigger"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "trigger": {
+          "description": "Test trigger payload. channel must match the flow's trigger channel. Provide exactly one of path (fixture file) or inline (inline body). headers are optional and populate the same envelope headers a real trigger would.",
+          "type": "object",
+          "required": ["channel"],
+          "additionalProperties": false,
+          "properties": {
+            "channel": { "type": "string" },
+            "path": { "type": "string" },
+            "inline": {},
+            "headers": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          },
+          "oneOf": [
+            { "required": ["path"], "not": { "required": ["inline"] } },
+            { "required": ["inline"], "not": { "required": ["path"] } }
+          ]
+        },
+        "context": {
+          "description": "Flow-context values surfaced to mapping expressions as $context.<key>. Used to pin normally-generated values (correlation ids, timestamps, uuids) so golden-file assertions are stable.",
+          "type": "object",
+          "additionalProperties": true
+        },
+        "faults": {
+          "description": "Fault-injection overrides. Force the named step to fail with the given error code; afterAttempts lets the retry logic exercise its budget first.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["step", "error"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "string" },
+              "error": { "type": "string" },
+              "afterAttempts": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "expect": {
+          "description": "Ordered list of expectations. A 'channel' entry asserts a message was emitted to that channel; a 'step' entry asserts the named step was reached. 'error' asserts that the expected DLQ envelope was produced after N retries.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "channel": { "type": "string" },
+              "step": { "type": "string" },
+              "body": { "$ref": "#/$defs/inlineOrRef" },
+              "headers": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              },
+              "error": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "code": { "type": "string" },
+                  "dlqChannel": { "type": "string" },
+                  "afterRetries": { "type": "integer", "minimum": 0 },
+                  "envelope": { "$ref": "#/$defs/inlineOrRef" }
+                }
+              }
+            },
+            "anyOf": [
+              { "required": ["channel"] },
+              { "required": ["step"] },
+              { "required": ["error"] }
+            ]
+          }
+        }
+      }
+    },
+    "trackedProperty": {
+      "type": "object",
+      "required": ["name", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "source": {
+          "description": "Where the property value comes from: a body path (e.g. 'body.orderId'), a header name, or a flow-context reference (e.g. '$context.correlationId').",
+          "type": "string"
+        },
+        "description": { "type": "string" },
+        "classification": {
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "pii": { "type": "boolean", "default": false }
+      }
+    },
+    "flowMetric": {
+      "type": "object",
+      "required": ["name", "type", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "enum": ["counter", "gauge", "histogram"] },
+        "source": {
+          "description": "Body path, header name, or context reference the pack evaluates on each flow run to produce the metric value. For counters the value is typically a literal '1' or a conditional expression.",
+          "type": "string"
+        },
+        "unit": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
+        "type": {
+          "enum": [
+            "receive", "transform", "enrich", "filter",
+            "router", "recipientList", "splitter", "aggregator",
+            "scatterGather", "send", "invoke",
+            "claimCheck", "wireTap", "throttler", "saga", "resequencer",
+            "execute"
+          ]
+        },
+        "channel": { "type": "string" },
+        "transform": {
+          "type": "string",
+          "description": "DEPRECATED symbolic transform name. Prefer mappingRef pointing at mappings[].name."
+        },
+        "mappingRef": {
+          "type": "string",
+          "description": "Name of a mapping in mappings[] applied by this step. Required on transform and enrich steps going forward."
+        },
+        "predicate": {
+          "description": "Filter predicate. Either an engine expression object or a raw string (legacy).",
+          "oneOf": [
+            { "type": "string" },
+            { "$ref": "#/$defs/predicate" }
+          ]
+        },
+        "correlation": { "type": "string" },
+        "dependency": { "type": "string" },
+        "timeout": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" },
+        "retryRef": { "type": "string" },
+        "next": { "type": "string" },
+        "routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["next"],
+            "additionalProperties": false,
+            "properties": {
+              "when": {
+                "description": "Route predicate. Either an engine expression object (preferred) or a raw string (legacy).",
+                "oneOf": [
+                  { "type": "string" },
+                  { "$ref": "#/$defs/predicate" }
+                ]
+              },
+              "default": { "type": "boolean" },
+              "next": { "type": "string" }
+            }
+          }
+        },
+        "targets": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "errorHandling": { "$ref": "#/$defs/stepErrorHandling" },
+        "retry": {
+          "description": "Per-step retry policy. Primarily for invoke steps (today only the flow-level retry applies). When present on other step types, it overrides the flow-level retry for that step.",
+          "type": "object",
+          "required": ["policy", "count", "interval"],
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "enum": ["fixed", "exponential"] },
+            "count": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "interval": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" }
+          }
+        },
+        "store": {
+          "description": "claimCheck: name of a channel (typically kind: blob) where the large payload is stored. ir-validator rejects stores whose channel kind is not 'blob'.",
+          "type": "string"
+        },
+        "keyExpression": {
+          "description": "claimCheck: engine expression (default JSONata) that computes the object-store key from the inbound message body.",
+          "type": "string"
+        },
+        "referenceMessageRef": {
+          "description": "claimCheck: messages[].name of the reference envelope emitted downstream (typically carrying claim ticket + pointer, not the full payload).",
+          "type": "string"
+        },
+        "target": {
+          "description": "wireTap: name of the diagnostic channel receiving a duplicate of each message. Non-blocking: failure to publish must not fail the main flow.",
+          "type": "string"
+        },
+        "rps": {
+          "description": "throttler: requests-per-second cap. Packs compile to the native throttle primitive (API Management, Logic Apps concurrency, etc.).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "burst": {
+          "description": "throttler: burst capacity above the sustained rps before strategy kicks in.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "strategy": {
+          "description": "throttler behaviour when the limit is exceeded: 'shed' drops (returns 429/quota), 'queue' buffers until capacity frees, 'block' applies backpressure to the caller.",
+          "enum": ["shed", "queue", "block"]
+        },
+        "children": {
+          "description": "saga: ordered list of { forward, compensate } pairs. forward is invoked in order; on failure of step N, compensate[N-1..0] run in reverse. Both ids must resolve to steps within the same flow.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["forward", "compensate"],
+            "additionalProperties": false,
+            "properties": {
+              "forward": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]*$"
+              },
+              "compensate": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]*$"
+              }
+            }
+          }
+        },
+        "orderingKey": {
+          "description": "resequencer: body path or header name used to derive the per-key sequence number. Messages without a key flow through unchanged.",
+          "type": "string"
+        },
+        "window": {
+          "description": "resequencer: ISO-8601 duration for how long the resequencer buffers out-of-order messages before giving up and forwarding them in arrival order.",
+          "type": "string",
+          "pattern": "^P(?:\\d+Y)?(?:\\d+M)?(?:\\d+W)?(?:\\d+D)?(?:T(?:\\d+H)?(?:\\d+M)?(?:\\d+S)?)?$"
+        },
+        "codeRef": {
+          "description": "execute: path to the extracted source-code artifact (relative to the IR file). Required on execute steps.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "execute / custom mapping: execution environment for the code artifact.",
+          "enum": ["dotnet", "java", "js", "python", "xslt-ext", "bre"]
+        },
+        "migrationHint": {
+          "description": "execute / custom mapping: pack-facing migration verdict. 'auto' = pack compiles natively; 'local-function' = in-process wrapper; 'azure-function' = sidecar required; 'manual' = STRUCTURAL blocker.",
+          "enum": ["auto", "local-function", "azure-function", "manual"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "receive" } } },
+          "then": { "required": ["channel"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "send" } } },
+          "then": { "required": ["channel"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "invoke" } } },
+          "then": { "required": ["dependency", "timeout"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "router" } } },
+          "then": { "required": ["routes"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "recipientList" } } },
+          "then": { "required": ["targets"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "aggregator" } } },
+          "then": { "required": ["correlation", "next"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "claimCheck" } } },
+          "then": { "required": ["store", "keyExpression", "referenceMessageRef"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "wireTap" } } },
+          "then": { "required": ["target"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "throttler" } } },
+          "then": { "required": ["rps", "strategy"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "saga" } } },
+          "then": { "required": ["children"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "resequencer" } } },
+          "then": { "required": ["orderingKey", "window"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "execute" } } },
+          "then": { "required": ["codeRef"] }
+        }
+      ]
+    },
+    "predicate": {
+      "type": "object",
+      "required": ["expression"],
+      "additionalProperties": false,
+      "properties": {
+        "engine": {
+          "enum": ["jsonata", "jslt", "xpath", "expression"],
+          "default": "jsonata"
+        },
+        "expression": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "errorHandling": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retry": {
+          "type": "object",
+          "required": ["policy", "count", "interval"],
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "enum": ["fixed", "exponential"] },
+            "count": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "interval": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" }
+          }
+        },
+        "dlq": {
+          "type": "object",
+          "required": ["channel"],
+          "additionalProperties": false,
+          "properties": {
+            "channel": { "type": "string" }
+          }
+        },
+        "circuitBreaker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "failureRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "windowSeconds": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "stepErrorHandling": {
+      "description": "Per-step error handling overrides. Mirrors the top-level errorHandling shape and adds step-scoped controls (fallback, retryable/nonRetryable classification, onError disposition).",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retry": {
+          "type": "object",
+          "required": ["policy", "count", "interval"],
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "enum": ["fixed", "exponential"] },
+            "count": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "interval": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" }
+          }
+        },
+        "dlq": {
+          "type": "object",
+          "required": ["channel"],
+          "additionalProperties": false,
+          "properties": {
+            "channel": { "type": "string" }
+          }
+        },
+        "circuitBreaker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "failureRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "windowSeconds": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "fallback": {
+          "description": "Id of a step in the same flow to route to on unhandled error. Distinct from the global DLQ. ir-validator rejects fallbacks that don't resolve.",
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$"
+        },
+        "retryableErrors": {
+          "description": "Error classifications (exception type names, HTTP status strings, broker error codes) that should trigger retry. Packs compile to platform-native filters.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "nonRetryableErrors": {
+          "description": "Error classifications that must never be retried (e.g. 400 ValidationError). Keeps the retry budget on transient failures.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "onError": {
+          "description": "Disposition when the step fails after exhausting retries. 'continue' swallows the error and proceeds to next; 'dlq' sends to the step's (or flow's) dlq; 'fallback' routes to the fallback step; 'fail' propagates to the flow error handler.",
+          "enum": ["continue", "dlq", "fallback", "fail"],
+          "default": "dlq"
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "managedIdentity": { "enum": ["system", "userAssigned"] },
+        "principalRef": { "type": "string" },
+        "roleAssignments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["scope", "role"],
+            "additionalProperties": false,
+            "properties": {
+              "scope": { "type": "string" },
+              "role": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "nonFunctionals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rps": { "type": "number", "minimum": 0 },
+        "p95LatencyMs": { "type": "integer", "minimum": 0 },
+        "slo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "type": "number", "minimum": 0, "maximum": 100 },
+            "errorBudgetDays": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "required": ["name", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "tags": {
+          "description": "Free-form labels for cross-referencing (e.g. catalogue IDs like INT-001).",
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "kind": { "enum": ["rest", "grpc", "queue", "topic", "db", "blob", "function"] },
+        "contractRef": { "type": "string" },
+        "timeout": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" },
+        "retry": {
+          "description": "Dependency-level retry policy, first-class sibling of timeout. Overrides the flow-level retry when invoke steps target this dependency without their own retry block.",
+          "type": "object",
+          "required": ["policy", "count", "interval"],
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "enum": ["fixed", "exponential"] },
+            "count": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "interval": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" }
+          }
+        },
+        "streaming": {
+          "description": "gRPC streaming mode. 'none' is unary; clientStream / serverStream / bidi match the gRPC-native semantics. ir-validator rejects this field on non-grpc dependencies.",
+          "enum": ["none", "clientStream", "serverStream", "bidi"]
+        },
+        "idempotencyHeader": {
+          "description": "REST: header the dependency expects for idempotent calls (e.g. 'Idempotency-Key'). Packs propagate the message-level idempotencyKey into this header on every call.",
+          "type": "string"
+        },
+        "rateLimit": {
+          "description": "REST: dependency-specific rate limit override. Distinct from channel-level rateLimit in channel.binding.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rps": { "type": "integer", "minimum": 1 },
+            "burst": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "circuitBreaker": {
+          "description": "REST: dependency-specific circuit-breaker override. Distinct from the global errorHandling.circuitBreaker.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "failureRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+            "windowSeconds": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "driver": {
+          "description": "DB: driver identifier (e.g. 'sqlserver', 'postgres', 'oracle', 'mongodb'). Packs pick the client library from this.",
+          "type": "string"
+        },
+        "txBoundary": {
+          "description": "DB: transaction boundary. 'perCall' opens a new transaction per invoke step; 'perFlow' opens a single transaction spanning all invoke steps against this dependency within one flow run.",
+          "enum": ["perCall", "perFlow"]
+        },
+        "codeRef": {
+          "description": "function: path to the extracted source-code artifact (relative to the IR file). Required when kind is 'function'.",
+          "type": "string"
+        },
+        "runtime": {
+          "description": "function: execution environment for the callable. Packs compile to the platform-native function host (Logic Apps InvokeFunction, Azure Functions, etc.).",
+          "enum": ["dotnet", "java", "js", "python", "xslt-ext", "bre"]
+        },
+        "migrationHint": {
+          "description": "function: pack-facing migration verdict. 'auto' = inline; 'local-function' = in-process wrapper; 'azure-function' = sidecar; 'manual' = STRUCTURAL blocker.",
+          "enum": ["auto", "local-function", "azure-function", "manual"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "function" } } },
+          "then": { "required": ["codeRef", "runtime", "migrationHint"] }
+        }
+      ]
+    }
+  }
+}

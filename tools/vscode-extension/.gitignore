@@ -1,0 +1,5 @@
+node_modules/
+dist/
+*.vsix
+# Generated at build time by scripts/sync-assets.js (bundled into the .vsix).
+assets/

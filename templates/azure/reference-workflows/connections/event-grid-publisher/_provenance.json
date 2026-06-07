@@ -1,0 +1,8 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/EventGridPublisher/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "sha": "5dfba6be3d09507e83338a50f61f0cf84362f9b9",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Two variants: access-key based and AAD-OAuth (certificate). NOTE: upstream uses 'ServiceProviders/EventGridPublisher' (capital S, capital E) on the AAD variant — preserved verbatim. Confirm against runtime before deploying."
+}

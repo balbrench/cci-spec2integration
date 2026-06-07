@@ -1,0 +1,73 @@
+apiVersion: spec2integration/v1
+kind: Integration
+metadata:
+  name: fail-step-dag
+  domain: testing
+  owner: ir-validator-fixtures
+  description: Exercises STEP_CYCLE (Flow A) and STEP_UNREACHABLE (Flow B) in one IR.
+  scenario: greenfield
+
+channels:
+  - name: inA
+    kind: http
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: inB
+    kind: queue
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: outSink
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+messages:
+  - name: PurchaseOrder
+    schemaRef: contracts/schemas/PurchaseOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    idempotencyKey: body.orderId
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+flows:
+  # STEP_CYCLE: stepA -> stepB -> stepA
+  - name: CyclicFlow
+    stateful: true
+    trigger: inA
+    steps:
+      - id: stepA
+        type: transform
+        next: stepB
+      - id: stepB
+        type: transform
+        next: stepA       # back-edge -> cycle stepA <-> stepB
+
+  # STEP_UNREACHABLE: orphan step never reachable from entry
+  - name: UnreachableFlow
+    stateful: true
+    trigger: inB
+    steps:
+      - id: entry
+        type: receive
+        channel: inB
+        next: finish        # jumps over 'orphan'
+      - id: orphan
+        type: transform     # never reached: entry skips it, no other edges point at it
+      - id: finish
+        type: send
+        channel: outSink

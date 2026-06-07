@@ -1,0 +1,37 @@
+asyncapi: 3.0.0
+info:
+  title: <Integration Name> Async API
+  version: 0.1.0
+  description: Asynchronous channels (queues, topics) used by this integration.
+  contact:
+    name: Spec2Integration
+    email: architecture@example.com
+  license:
+    name: Proprietary
+servers:
+  messaging:
+    host: placeholder.messaging.local
+    protocol: amqp
+    description: Placeholder; concrete binding is supplied by the platform pack at deploy time.
+tags:
+  - name: messaging
+    description: Default tag placeholder until channel-specific tags are generated.
+channels:
+  <channel-name>:
+    address: <topic-or-queue-address>
+    messages:
+      <EventName>:
+        $ref: '#/components/messages/<EventName>'
+operations:
+  publish<EventName>:
+    action: send
+    channel:
+      $ref: '#/channels/<channel-name>'
+    messages:
+      - $ref: '#/components/messages/<EventName>'
+components:
+  messages:
+    <EventName>:
+      contentType: application/json
+      payload:
+        $ref: './schemas/<EventName>.json#'

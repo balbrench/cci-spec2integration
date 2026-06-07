@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pipeline Progress</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size, 13px);
+      color: var(--vscode-foreground);
+      background: var(--vscode-editor-background);
+      margin: 0; padding: 16px 20px;
+    }
+    h1 { font-size: 1.2em; margin: 0 0 2px; }
+    .sub { color: var(--vscode-descriptionForeground); margin: 0 0 16px; font-size: .9em; }
+    .bar { height: 10px; border-radius: 5px; background: var(--vscode-editorWidget-background, #2222); overflow: hidden; border: 1px solid var(--vscode-panel-border, #8884); }
+    .bar > span { display: block; height: 100%; background: var(--vscode-charts-green, #3fb950); transition: width .3s ease; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0 8px; }
+    .pill { padding: 2px 8px; border-radius: 10px; font-size: .82em; border: 1px solid var(--vscode-panel-border, #8884); }
+    .pill.bad { background: color-mix(in srgb, var(--vscode-charts-red, #f85149) 22%, transparent); }
+    .pill.warn { background: color-mix(in srgb, var(--vscode-charts-yellow, #d29922) 22%, transparent); }
+    .pill.ok { background: color-mix(in srgb, var(--vscode-charts-green, #3fb950) 18%, transparent); }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 16px; font-size: .8em; color: var(--vscode-descriptionForeground); }
+    .legend span { display: inline-flex; align-items: center; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 4px 8px; border-bottom: 1px solid var(--vscode-panel-border, #8883); vertical-align: top; }
+    td.id { color: var(--vscode-descriptionForeground); white-space: nowrap; width: 2.4em; }
+    td.st { white-space: nowrap; width: 5.5em; }
+    td.name { white-space: nowrap; }
+    td.sum { color: var(--vscode-descriptionForeground); font-size: .9em; }
+    td.links { white-space: nowrap; text-align: right; }
+    td.time { color: var(--vscode-descriptionForeground); font-size: .85em; text-align: right; white-space: nowrap; }
+    tr.next td { font-weight: 600; }
+    tr.next td.name::after { content: " ← next"; color: var(--vscode-charts-blue, #58a6ff); font-weight: 400; }
+    tr.skip td.name, tr.skip td.sum { opacity: .55; }
+    .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .word { font-size: .82em; }
+    .done    { background: var(--vscode-charts-green, #3fb950); }
+    .covered { background: var(--vscode-charts-blue, #58a6ff); }
+    .blocked { background: var(--vscode-charts-red, #f85149); }
+    .stale   { background: var(--vscode-charts-yellow, #d29922); }
+    .missing { background: var(--vscode-descriptionForeground, #888); opacity: .5; }
+    .optional{ background: transparent; border: 1px dashed var(--vscode-descriptionForeground, #888); }
+    .w-done    { color: var(--vscode-charts-green, #3fb950); }
+    .w-covered { color: var(--vscode-charts-blue, #58a6ff); }
+    .w-blocked { color: var(--vscode-charts-red, #f85149); }
+    .w-stale   { color: var(--vscode-charts-yellow, #d29922); }
+    .w-missing, .w-optional { color: var(--vscode-descriptionForeground, #888); }
+    .lnk { cursor: pointer; text-decoration: none; margin-left: 6px; opacity: .85; }
+    .lnk:hover { opacity: 1; text-decoration: underline; }
+    .section { margin-top: 20px; }
+    .section h2 { font-size: .95em; margin: 0 0 6px; }
+    .cov, .arts { display: flex; gap: 18px; flex-wrap: wrap; }
+    .cov div { font-size: .9em; }
+    .cov b { font-size: 1.4em; display: block; }
+    .arts div { font-size: .9em; }
+    .arts b { font-size: 1.3em; }
+    code { background: var(--vscode-textCodeBlock-background, #8881); padding: 1px 5px; border-radius: 4px; }
+    .empty { color: var(--vscode-descriptionForeground); }
+    .footer { margin-top: 22px; color: var(--vscode-descriptionForeground); font-size: .82em; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Pipeline Progress</h1>
+  <p class="sub" id="folder"></p>
+
+  <div id="pre" style="display:none"></div>
+
+  <div id="main">
+    <div class="bar"><span id="barFill" style="width:0%"></span></div>
+    <div class="meta" id="meta"></div>
+    <div class="legend" id="legend"></div>
+
+    <table><tbody id="stages"></tbody></table>
+
+    <div class="section" id="artSection" style="display:none">
+      <h2>Generated artifacts</h2>
+      <div class="arts" id="arts"></div>
+    </div>
+
+    <div class="section" id="covSection" style="display:none">
+      <h2>Coverage</h2>
+      <div class="cov" id="cov"></div>
+    </div>
+
+    <div class="section" id="blockedSection" style="display:none">
+      <h2>Blocked flows</h2>
+      <div id="blocked"></div>
+    </div>
+
+    <p class="footer" id="footer"></p>
+  </div>
+
+  <script>
+    const vscodeApi = acquireVsCodeApi();
+    const KNOWN = { blocked: 1, stale: 1, missing: 1, covered: 1, done: 1 };
+    // Non-gating stages — when missing they are optional/not-applicable, not a gap.
+    const OPTIONAL = { '3a': 1, '6': 1, '6a': 1 };
+    const WORD = { done: 'done', covered: 'covered', blocked: 'blocked', stale: 'stale', missing: 'missing', optional: 'optional' };
+
+    function fmtMs(ms) {
+      if (typeof ms !== 'number' || ms <= 0) return '';
+      if (ms < 1000) return ms + 'ms';
+      const s = Math.round(ms / 1000);
+      if (s < 90) return s + 's';
+      const m = Math.round(s / 60);
+      if (m < 90) return m + 'm';
+      return Math.round(m / 60) + 'h';
+    }
+
+    function renderPre(pre) {
+      document.getElementById('main').style.display = 'none';
+      document.getElementById('folder').textContent = pre.folder + ' — BizTalk solution (pre-integration)';
+      const el = document.getElementById('pre');
+      el.style.display = '';
+      const cards = [];
+      if (pre.boundaries) cards.push(`<div><b>${pre.boundaries}</b>integration boundaries catalogued</div>`);
+      if (pre.artifacts !== undefined) {
+        cards.push(`<div><b>${pre.artifacts}</b>artifacts inventoried${pre.manual ? ' (' + pre.manual + ' manual)' : ''}</div>`);
+      }
+      el.innerHTML =
+        `<div class="meta"><span class="pill ok">inventory complete</span><span class="pill">next: <code>/biztalk-reverse-engineer</code></span></div>` +
+        (cards.length ? `<div class="cov">${cards.join('')}</div>` : '') +
+        `<p style="margin-top:16px;line-height:1.5">The BizTalk solution has been inventoried and catalogued, but no numbered ` +
+        `integration (<code>NNN-slug/status.json</code>) exists yet — the catalogue is what decides how many integrations ` +
+        `this solution becomes. Run <code>/biztalk-reverse-engineer</code> to author the spec, contracts and IR; the full ` +
+        `pipeline stage table then appears here.</p>`;
+    }
+
+    function isSkippable(s) {
+      return OPTIONAL[s.id] && s.status === 'missing';
+    }
+
+    function render(msg) {
+      const { folder, status, pre, nextStageId, links, artifacts } = msg;
+      document.getElementById('title').textContent = 'Pipeline Progress';
+      if (!folder && pre) { renderPre(pre); return; }
+      document.getElementById('pre').style.display = 'none';
+      document.getElementById('main').style.display = '';
+      document.getElementById('folder').textContent = folder || 'No integration found';
+      const stages = (status && status.stages) || [];
+      const counts = (status && status.counts) || {};
+      const timing = (status && status.stageTiming) || {};
+      const linkMap = links || {};
+
+      // progress bar — done + covered count as complete; optional-missing stages
+      // are excluded from the denominator so the bar can actually reach 100%.
+      const applicable = stages.filter((s) => !isSkippable(s));
+      const total = applicable.length;
+      const complete = applicable.filter((s) => s.status === 'done' || s.status === 'covered').length;
+      const pct = total ? Math.round((complete / total) * 100) : 0;
+      document.getElementById('barFill').style.width = pct + '%';
+
+      // meta pills
+      const meta = document.getElementById('meta');
+      meta.innerHTML = '';
+      const addPill = (text, cls) => {
+        const el = document.createElement('span');
+        el.className = 'pill' + (cls ? ' ' + cls : '');
+        el.textContent = text;
+        meta.appendChild(el);
+      };
+      addPill(`${complete} / ${total} stages`, complete === total ? 'ok' : '');
+      const sev1 = counts.sev1, sev2 = counts.sev2;
+      const stale = (status && status.staleness && status.staleness.length) || counts.staleStages || 0;
+      if (sev1) addPill(`${sev1} Sev-1`, 'bad');
+      if (sev2) addPill(`${sev2} Sev-2`, 'warn');
+      if (counts.blockedFlows) addPill(`${counts.blockedFlows} blocked`, 'bad');
+      if (counts.openClarifications) addPill(`${counts.openClarifications} open Q`, 'warn');
+      if (stale) addPill(`${stale} stale`, 'warn');
+      if (status && status.activePlatform) addPill(status.activePlatform);
+
+      // legend
+      document.getElementById('legend').innerHTML = ['done', 'covered', 'blocked', 'stale', 'missing', 'optional']
+        .map((k) => `<span><span class="dot ${k}"></span>${WORD[k]}</span>`)
+        .join('');
+
+      // stage table
+      const tbody = document.getElementById('stages');
+      tbody.innerHTML = '';
+      for (const s of stages) {
+        const skip = isSkippable(s);
+        const statusKey = skip ? 'optional' : (KNOWN[s.status] ? s.status : 'missing');
+        const tr = document.createElement('tr');
+        if (s.id === nextStageId && !skip) tr.className = 'next';
+        else if (skip) tr.className = 'skip';
+        const t = timing[s.id] || {};
+        const timeText = fmtMs(t.elapsedMs) || (t.completedAt ? new Date(t.completedAt).toLocaleString() : '');
+        const lk = linkMap[s.id] || {};
+        let linkHtml = '';
+        if (lk.url) linkHtml += `<span class="lnk" data-url="${escapeAttr(lk.url)}" title="Open deployed app — ${escapeAttr(lk.url)}">🌐</span>`;
+        if (lk.artifact) linkHtml += `<span class="lnk" data-rel="${escapeAttr(lk.artifact)}" title="Open ${escapeAttr(lk.artifact)}">📄</span>`;
+        if (lk.report) linkHtml += `<span class="lnk" data-rel="${escapeAttr(lk.report)}" title="Open report ${escapeAttr(lk.report)}">📑</span>`;
+        tr.innerHTML =
+          `<td class="id">${escapeHtml(s.id)}</td>` +
+          `<td class="st"><span class="dot ${statusKey}"></span><span class="word w-${statusKey}">${WORD[statusKey]}</span></td>` +
+          `<td class="name">${escapeHtml(s.name)}</td>` +
+          `<td class="sum">${escapeHtml(skip ? (s.summary || 'not run — optional / not a gate') : (s.summary || s.status))}</td>` +
+          `<td class="links">${linkHtml}</td>` +
+          `<td class="time">${escapeHtml(timeText)}</td>`;
+        tbody.appendChild(tr);
+      }
+
+      // generated artifacts
+      const artSection = document.getElementById('artSection');
+      if (artifacts) {
+        artSection.style.display = '';
+        const a = document.getElementById('arts');
+        const card = (cond, n, label, rel) => {
+          if (!cond) return '';
+          const open = rel ? ` <span class="lnk" data-rel="${escapeAttr(rel)}">open</span>` : '';
+          return `<div><b>${n}</b> ${label}${open}</div>`;
+        };
+        a.innerHTML =
+          card(artifacts.workflows > 0, artifacts.workflows, 'workflow' + (artifacts.workflows === 1 ? '' : 's'), 'app') +
+          card(artifacts.connections, '✓', 'connections.json', 'app/connections.json') +
+          card(artifacts.infraModules > 0, artifacts.infraModules, 'Bicep file' + (artifacts.infraModules === 1 ? '' : 's'), 'infra') +
+          card(artifacts.functions > 0, artifacts.functions, 'Function project' + (artifacts.functions === 1 ? '' : 's'), 'Functions') +
+          card(artifacts.testProjects > 0, artifacts.testProjects, 'test project' + (artifacts.testProjects === 1 ? '' : 's'), 'tests-mstest') +
+          card(artifacts.cicd > 0, artifacts.cicd, 'CI/CD workflow' + (artifacts.cicd === 1 ? '' : 's'), 'app/.github/workflows') +
+          (artifacts.total ? `<div><b>${artifacts.total}</b> files total</div>` : '');
+      } else {
+        artSection.style.display = 'none';
+      }
+
+      // coverage
+      const cov = status && status.coverage;
+      const covSection = document.getElementById('covSection');
+      if (cov && Object.keys(cov).length) {
+        covSection.style.display = '';
+        const el = document.getElementById('cov');
+        el.innerHTML = '';
+        const card = (label, made, total) => {
+          if (made === undefined && total === undefined) return;
+          const d = document.createElement('div');
+          d.innerHTML = `<b>${made ?? 0}${total !== undefined ? ' / ' + total : ''}</b>${label}`;
+          el.appendChild(d);
+        };
+        card('flows with tests', cov.flowsWithTests, cov.flowsTotal);
+        card('mappings documented', cov.mappingsDocumented, cov.mappingsTotal);
+      } else {
+        covSection.style.display = 'none';
+      }
+
+      // blocked flows
+      const ids = (status && status.blockedFlowIds) || [];
+      const blockedSection = document.getElementById('blockedSection');
+      if (ids.length) {
+        blockedSection.style.display = '';
+        document.getElementById('blocked').innerHTML = ids.map((i) => `<code>${escapeHtml(i)}</code>`).join(' ');
+      } else {
+        blockedSection.style.display = 'none';
+      }
+
+      // footer
+      const nextCmd = status && status.next && status.next.command ? status.next.command : null;
+      const bits = [];
+      if (nextCmd) bits.push('next: ' + nextCmd);
+      if (status && status.refreshedBy) bits.push('refreshed by ' + status.refreshedBy);
+      if (status && status.generatedAt) bits.push(status.generatedAt);
+      document.getElementById('footer').textContent = bits.join(' · ');
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    }
+    function escapeAttr(s) { return escapeHtml(s); }
+
+    // Delegate clicks on open-links to the extension.
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest('.lnk');
+      if (!el) return;
+      if (el.dataset.url) vscodeApi.postMessage({ type: 'openUrl', url: el.dataset.url });
+      else if (el.dataset.rel) vscodeApi.postMessage({ type: 'open', rel: el.dataset.rel });
+    });
+
+    window.addEventListener('message', (e) => {
+      const msg = e.data;
+      if (msg.type === 'load' || msg.type === 'status') render(msg);
+    });
+  </script>
+</body>
+</html>

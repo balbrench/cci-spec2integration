@@ -1,0 +1,2068 @@
+{
+  "version": 1,
+  "generatedAt": "2026-05-21T07:46:21.549Z",
+  "totalEntries": 63,
+  "countsByCategory": {
+    "connection": 20,
+    "service-provider": 16,
+    "workflow": 27
+  },
+  "entries": [
+    {
+      "id": "connections/agent",
+      "category": "connection",
+      "folder": "connections/agent",
+      "path": "connections/agent/connections.json",
+      "managedApis": [
+        {
+          "name": "msnweather",
+          "apiType": "msnweather"
+        }
+      ],
+      "serviceProviders": [],
+      "hasAgentConnections": true,
+      "tags": [
+        "connections",
+        "agent",
+        "msnweather",
+        "managed-api",
+        "ai"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/Agent/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "connections/agent-api",
+      "category": "connection",
+      "folder": "connections/agent-api",
+      "path": "connections/agent-api/connections.json",
+      "managedApis": [
+        {
+          "name": "msnweather",
+          "apiType": "msnweather"
+        }
+      ],
+      "serviceProviders": [],
+      "hasAgentConnections": true,
+      "tags": [
+        "connections",
+        "agent",
+        "api",
+        "msnweather",
+        "managed-api",
+        "ai"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/AgentAPI/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "connections/api-connection-webhook-logic-app",
+      "category": "connection",
+      "folder": "connections/api-connection-webhook-logic-app",
+      "path": "connections/api-connection-webhook-logic-app/connections.json",
+      "managedApis": [
+        {
+          "name": "office365",
+          "apiType": "office365"
+        }
+      ],
+      "serviceProviders": [],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "api",
+        "connection",
+        "webhook",
+        "logic",
+        "app",
+        "office365",
+        "managed-api"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/ApiConnectionWebhookLogicApp/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "connections/azure-ai-search",
+      "category": "connection",
+      "folder": "connections/azure-ai-search",
+      "path": "connections/azure-ai-search/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "AzureAISearchAdminKeyAuth",
+          "serviceProviderId": "/serviceProviders/azureaisearch",
+          "parameterSetName": null
+        },
+        {
+          "name": "AzureAISearchActiveDirectoryOAuth",
+          "serviceProviderId": "/serviceProviders/azureaisearch",
+          "parameterSetName": "ActiveDirectoryOAuth"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "azure",
+        "ai",
+        "search",
+        "azureaisearch",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/AzureAISearch/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "connections/confluent-kafka",
+      "category": "connection",
+      "folder": "connections/confluent-kafka",
+      "path": "connections/confluent-kafka/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "confluentKafka",
+          "serviceProviderId": "/serviceProviders/confluentKafka",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "confluent",
+        "kafka",
+        "confluentkafka",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/ConfluentKafka/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/cosmos-db",
+      "category": "connection",
+      "folder": "connections/cosmos-db",
+      "path": "connections/cosmos-db/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "AzureCosmosDB",
+          "serviceProviderId": "/serviceProviders/AzureCosmosDB",
+          "parameterSetName": "connectionString"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "cosmos",
+        "db",
+        "azurecosmosdb",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": ".github/skills/logic-apps/references/reference-catalog/connections/CosmosDBServiceProvider/connections.json",
+        "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/db2",
+      "category": "connection",
+      "folder": "connections/db2",
+      "path": "connections/db2/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "DB2ConnectionString",
+          "serviceProviderId": "serviceProviders/DB2",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "db2",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/DB2/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/event-grid-publisher",
+      "category": "connection",
+      "folder": "connections/event-grid-publisher",
+      "path": "connections/event-grid-publisher/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "eventGridPublisherConnectionString",
+          "serviceProviderId": "/serviceProviders/eventGridPublisher",
+          "parameterSetName": null
+        },
+        {
+          "name": "eventGridPublisherCloudAadConnection",
+          "serviceProviderId": "ServiceProviders/EventGridPublisher",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "event",
+        "grid",
+        "publisher",
+        "eventgridpublisher",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/EventGridPublisher/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/event-hub",
+      "category": "connection",
+      "folder": "connections/event-hub",
+      "path": "connections/event-hub/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "eventHub",
+          "serviceProviderId": "/serviceProviders/eventHub",
+          "parameterSetName": "connectionString"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "event",
+        "hub",
+        "eventhub",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/EventHubServiceProvider/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/file-system",
+      "category": "connection",
+      "folder": "connections/file-system",
+      "path": "connections/file-system/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "FileSystem",
+          "serviceProviderId": "/serviceProviders/FileSystem",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "file",
+        "system",
+        "filesystem",
+        "service-provider"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "connections/ftp",
+      "category": "connection",
+      "folder": "connections/ftp",
+      "path": "connections/ftp/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "Ftp",
+          "serviceProviderId": "/serviceProviders/Ftp",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "ftp",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/Ftp/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/ibm-mq",
+      "category": "connection",
+      "folder": "connections/ibm-mq",
+      "path": "connections/ibm-mq/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "mq",
+          "serviceProviderId": "/serviceProviders/mq",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "ibm",
+        "mq",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/MQServiceProvider/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/mllp",
+      "category": "connection",
+      "folder": "connections/mllp",
+      "path": "connections/mllp/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "mllp",
+          "serviceProviderId": "/serviceProviders/mllp",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "mllp",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/Mllp/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/openai",
+      "category": "connection",
+      "folder": "connections/openai",
+      "path": "connections/openai/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "OpenAi",
+          "serviceProviderId": "/serviceProviders/OpenAI",
+          "parameterSetName": "KeyAndEndpointConnection"
+        },
+        {
+          "name": "OpenAiManagedIdentity",
+          "serviceProviderId": "/serviceProviders/OpenAI",
+          "parameterSetName": "ManagedServiceIdentity"
+        },
+        {
+          "name": "OpenAiActiveDirectoryOAuth",
+          "serviceProviderId": "/serviceProviders/OpenAI",
+          "parameterSetName": "ActiveDirectoryOAuth"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "openai",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/OpenAI/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "connections/sap",
+      "category": "connection",
+      "folder": "connections/sap",
+      "path": "connections/sap/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "SapSncNoPwdWithMessageServer",
+          "serviceProviderId": "/serviceProviders/sap",
+          "parameterSetName": null
+        },
+        {
+          "name": "SapSncUNamePwdWithMessageServer",
+          "serviceProviderId": "/serviceProviders/sap",
+          "parameterSetName": null
+        },
+        {
+          "name": "sap",
+          "serviceProviderId": "/serviceProviders/sap",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "sap",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/SAPServiceProvider/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/service-bus",
+      "category": "connection",
+      "folder": "connections/service-bus",
+      "path": "connections/service-bus/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "serviceBus",
+          "serviceProviderId": "/serviceProviders/serviceBus",
+          "parameterSetName": "connectionString"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "service",
+        "bus",
+        "servicebus",
+        "service-provider"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "connections/sftp",
+      "category": "connection",
+      "folder": "connections/sftp",
+      "path": "connections/sftp/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "Sftp",
+          "serviceProviderId": "/serviceProviders/Sftp",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "sftp",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/SFTP/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/smtp",
+      "category": "connection",
+      "folder": "connections/smtp",
+      "path": "connections/smtp/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "Smtp",
+          "serviceProviderId": "/serviceProviders/Smtp",
+          "parameterSetName": null
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "smtp",
+        "service-provider"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/connections/SMTP/connections.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "connections/sql",
+      "category": "connection",
+      "folder": "connections/sql",
+      "path": "connections/sql/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "sql",
+          "serviceProviderId": "/serviceProviders/sql",
+          "parameterSetName": "connectionString"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "sql",
+        "service-provider"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "connections/storage",
+      "category": "connection",
+      "folder": "connections/storage",
+      "path": "connections/storage/connections.json",
+      "managedApis": [],
+      "serviceProviders": [
+        {
+          "name": "AzureBlob",
+          "serviceProviderId": "/serviceProviders/AzureBlob",
+          "parameterSetName": "connectionString"
+        },
+        {
+          "name": "azurequeues",
+          "serviceProviderId": "/serviceProviders/azurequeues",
+          "parameterSetName": "connectionString"
+        }
+      ],
+      "hasAgentConnections": false,
+      "tags": [
+        "connections",
+        "storage",
+        "azureblob",
+        "service-provider",
+        "azurequeues"
+      ],
+      "provenance": {
+        "upstream": ".github/skills/logic-apps/references/reference-catalog/connections/StorageServiceProvider/connections.json",
+        "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "service-providers/file-system/append-file",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/append-file",
+      "path": "service-providers/file-system/append-file/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "appendFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "append",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "appendfile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/appendFile/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/copy-file",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/copy-file",
+      "path": "service-providers/file-system/copy-file/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "copyFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "copy",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "copyfile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/copyFile/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/create-file",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/create-file",
+      "path": "service-providers/file-system/create-file/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "createFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "create",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "createfile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/createFile/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/create-file-empty",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/create-file-empty",
+      "path": "service-providers/file-system/create-file-empty/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "createFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "create",
+        "empty",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "createfile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/createFile-empty/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/create-file-from-get-content",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/create-file-from-get-content",
+      "path": "service-providers/file-system/create-file-from-get-content/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "getFileContent",
+        "createFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "create",
+        "from",
+        "get",
+        "content",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "getfilecontent",
+        "createfile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/createFile-fromGetContent/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/delete-file",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/delete-file",
+      "path": "service-providers/file-system/delete-file/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "deleteFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "delete",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "deletefile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/deleteFile/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/get-file-content",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/get-file-content",
+      "path": "service-providers/file-system/get-file-content/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "getFileContentV2"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "get",
+        "content",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "getfilecontentv2",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/getFileContentV2/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/get-file-metadata",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/get-file-metadata",
+      "path": "service-providers/file-system/get-file-metadata/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "getFileMetadata"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "get",
+        "metadata",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "getfilemetadata",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/getFileMetadata/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/list-folder",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/list-folder",
+      "path": "service-providers/file-system/list-folder/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "listFolder"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "list",
+        "folder",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "listfolder",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/listFolder/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/rename-file",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/rename-file",
+      "path": "service-providers/file-system/rename-file/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "renameFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "rename",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "renamefile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/renameFile/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/update-file",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/update-file",
+      "path": "service-providers/file-system/update-file/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "updateFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "update",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "updatefile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/updateFile/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/update-file-from-get-content",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/update-file-from-get-content",
+      "path": "service-providers/file-system/update-file-from-get-content/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "getFileContent",
+        "updateFile"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "update",
+        "from",
+        "get",
+        "content",
+        "request",
+        "serviceprovider",
+        "response",
+        "filesystem",
+        "getfilecontent",
+        "updatefile",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/updateFile-fromGetContent/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/when-files-are-added",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/when-files-are-added",
+      "path": "service-providers/file-system/when-files-are-added/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "ServiceProvider"
+      ],
+      "actionTypes": [],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "whenFilesAreAdded"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 0,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "when",
+        "files",
+        "are",
+        "added",
+        "serviceprovider",
+        "filesystem",
+        "whenfilesareadded"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/whenFilesAreAdded/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/file-system/when-files-are-added-or-modified",
+      "category": "service-provider",
+      "folder": "service-providers/file-system/when-files-are-added-or-modified",
+      "path": "service-providers/file-system/when-files-are-added-or-modified/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "ServiceProvider"
+      ],
+      "actionTypes": [],
+      "serviceProviderIds": [
+        "/serviceProviders/FileSystem"
+      ],
+      "operationIds": [
+        "whenFilesAreAddedOrModified"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 0,
+      "tags": [
+        "service",
+        "providers",
+        "file",
+        "system",
+        "when",
+        "files",
+        "are",
+        "added",
+        "or",
+        "modified",
+        "serviceprovider",
+        "filesystem",
+        "whenfilesareaddedormodified"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/whenFilesAreAddedOrModified/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/key-vault/encrypt-decrypt-with-key",
+      "category": "service-provider",
+      "folder": "service-providers/key-vault/encrypt-decrypt-with-key",
+      "path": "service-providers/key-vault/encrypt-decrypt-with-key/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/keyVault"
+      ],
+      "operationIds": [
+        "encryptDataWithKey",
+        "decryptDataWithKey"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "service",
+        "providers",
+        "key",
+        "vault",
+        "encrypt",
+        "decrypt",
+        "with",
+        "request",
+        "serviceprovider",
+        "response",
+        "keyvault",
+        "encryptdatawithkey",
+        "decryptdatawithkey",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/KeyVault/encryptDataWithKey-decryptDataWithKey/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "service-providers/key-vault/get-secret",
+      "category": "service-provider",
+      "folder": "service-providers/key-vault/get-secret",
+      "path": "service-providers/key-vault/get-secret/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ServiceProvider",
+        "Response"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/keyVault"
+      ],
+      "operationIds": [
+        "getSecret"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "service",
+        "providers",
+        "key",
+        "vault",
+        "get",
+        "secret",
+        "request",
+        "serviceprovider",
+        "response",
+        "keyvault",
+        "getsecret",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/KeyVault/getSecret/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "agent",
+      "category": "workflow",
+      "folder": "agent",
+      "path": "agent/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Agent",
+        "ApiConnection",
+        "Compose",
+        "Http",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [
+        "msnweather"
+      ],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "agent",
+        "request",
+        "apiconnection",
+        "compose",
+        "http",
+        "response",
+        "ai"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/Agent/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "api-connection-trigger-splitOn",
+      "category": "workflow",
+      "folder": "api-connection-trigger-splitOn",
+      "path": "api-connection-trigger-splitOn/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "ApiConnectionNotification"
+      ],
+      "actionTypes": [
+        "Compose"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": true,
+      "actionCount": 1,
+      "tags": [
+        "api",
+        "connection",
+        "trigger",
+        "split",
+        "on",
+        "apiconnectionnotification",
+        "compose"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "autonomous-agent",
+      "category": "workflow",
+      "folder": "autonomous-agent",
+      "path": "autonomous-agent/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Agent",
+        "Compose",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "autonomous",
+        "agent",
+        "request",
+        "compose",
+        "response",
+        "ai",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/AutonomousAgentWorkflow/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-21"
+      }
+    },
+    {
+      "id": "batch-receive",
+      "category": "workflow",
+      "folder": "batch-receive",
+      "path": "batch-receive/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Batch"
+      ],
+      "actionTypes": [
+        "Compose",
+        "Http"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "batch",
+        "receive",
+        "compose",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/BatchTrigger/childbatchtrigger.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "batch-send",
+      "category": "workflow",
+      "folder": "batch-send",
+      "path": "batch-send/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Response",
+        "SendToBatch"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "batch",
+        "send",
+        "request",
+        "response",
+        "sendtobatch",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/BatchTrigger/parentsendtobatch.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "csharp-script",
+      "category": "workflow",
+      "folder": "csharp-script",
+      "path": "csharp-script/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "compose",
+        "CSharpScriptCode",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "csharp",
+        "script",
+        "request",
+        "compose",
+        "csharpscriptcode",
+        "response",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/CSharpScript/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "event-hub-trigger",
+      "category": "workflow",
+      "folder": "event-hub-trigger",
+      "path": "event-hub-trigger/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "ServiceProvider"
+      ],
+      "actionTypes": [
+        "Compose"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/eventHub"
+      ],
+      "operationIds": [
+        "receiveEvents"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 1,
+      "tags": [
+        "event",
+        "hub",
+        "trigger",
+        "serviceprovider",
+        "compose",
+        "eventhub",
+        "receiveevents"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/EventHubTrigger/workflow.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "flat-file-decode",
+      "category": "workflow",
+      "folder": "flat-file-decode",
+      "path": "flat-file-decode/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "FlatFileDecoding",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "flat",
+        "file",
+        "decode",
+        "request",
+        "flatfiledecoding",
+        "response",
+        "flat-file",
+        "edi",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "flat-file-encode",
+      "category": "workflow",
+      "folder": "flat-file-encode",
+      "path": "flat-file-encode/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "FlatFileEncoding",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "flat",
+        "file",
+        "encode",
+        "request",
+        "flatfileencoding",
+        "response",
+        "flat-file",
+        "edi",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "foreach",
+      "category": "workflow",
+      "folder": "foreach",
+      "path": "foreach/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Foreach",
+        "Compose",
+        "InitializeVariable",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "foreach",
+        "request",
+        "compose",
+        "initializevariable",
+        "response",
+        "loop",
+        "variables",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "http-action",
+      "category": "workflow",
+      "folder": "http-action",
+      "path": "http-action/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Http",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "http",
+        "action",
+        "request",
+        "response"
+      ],
+      "provenance": {
+        "upstream": ".github/skills/logic-apps/references/reference-catalog/workflows/HttpActionWorkflow/HttpActionCustomTimeout.json",
+        "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "http-async-response",
+      "category": "workflow",
+      "folder": "http-async-response",
+      "path": "http-async-response/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Wait",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "http",
+        "async",
+        "response",
+        "request",
+        "wait"
+      ],
+      "provenance": {
+        "upstream": ".github/skills/logic-apps/references/reference-catalog/workflows/HttpRequestTrigger/HttpRequestTriggerWithWaitAndAsyncResponse.json",
+        "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "http-request-response",
+      "category": "workflow",
+      "folder": "http-request-response",
+      "path": "http-request-response/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 1,
+      "tags": [
+        "http",
+        "request",
+        "response"
+      ],
+      "provenance": {
+        "upstream": ".github/skills/logic-apps/references/reference-catalog/workflows/HttpRequestTrigger/SimpleHttpRequestTriggerWithResponse.json",
+        "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "ia-artifact-lookup",
+      "category": "workflow",
+      "folder": "ia-artifact-lookup",
+      "path": "ia-artifact-lookup/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "IntegrationAccountArtifactLookup",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "ia",
+        "artifact",
+        "lookup",
+        "request",
+        "integrationaccountartifactlookup",
+        "response",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "if-condition",
+      "category": "workflow",
+      "folder": "if-condition",
+      "path": "if-condition/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Compose",
+        "If",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "if",
+        "condition",
+        "request",
+        "compose",
+        "response",
+        "branching",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "invoke-function",
+      "category": "workflow",
+      "folder": "invoke-function",
+      "path": "invoke-function/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "InvokeFunction",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "invoke",
+        "function",
+        "request",
+        "invokefunction",
+        "response",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "invoke-function-retry",
+      "category": "workflow",
+      "folder": "invoke-function-retry",
+      "path": "invoke-function-retry/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "invokefunction",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "invoke",
+        "function",
+        "retry",
+        "request",
+        "invokefunction",
+        "response",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "json-xml-xslt-json",
+      "category": "workflow",
+      "folder": "json-xml-xslt-json",
+      "path": "json-xml-xslt-json/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "xmlCompose",
+        "Xslt",
+        "xmlParse",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 4,
+      "tags": [
+        "json",
+        "xml",
+        "xslt",
+        "request",
+        "xmlcompose",
+        "xmlparse",
+        "response",
+        "transform",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "liquid-action",
+      "category": "workflow",
+      "folder": "liquid-action",
+      "path": "liquid-action/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "liquid",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "liquid",
+        "action",
+        "request",
+        "response",
+        "http"
+      ],
+      "provenance": {
+        "upstream": "resources/referenceWorkflowsAndConnections/workflows/LiquidActionWorkflow/jsonInputWorkflow_resolved_JsonToJson.json",
+        "upstreamRepo": "Azure/logicapps-migration-agent",
+        "copiedAt": "2026-05-16"
+      }
+    },
+    {
+      "id": "parse-json",
+      "category": "workflow",
+      "folder": "parse-json",
+      "path": "parse-json/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ParseJson",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "parse",
+        "json",
+        "request",
+        "parsejson",
+        "response",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "sb-trigger-splitOn",
+      "category": "workflow",
+      "folder": "sb-trigger-splitOn",
+      "path": "sb-trigger-splitOn/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "ServiceProvider"
+      ],
+      "actionTypes": [
+        "Compose"
+      ],
+      "serviceProviderIds": [
+        "/serviceProviders/serviceBus"
+      ],
+      "operationIds": [
+        "receiveQueueMessages"
+      ],
+      "apiConnectionRefs": [],
+      "hasSplitOn": true,
+      "actionCount": 1,
+      "tags": [
+        "sb",
+        "trigger",
+        "split",
+        "on",
+        "serviceprovider",
+        "compose",
+        "servicebus",
+        "receivequeuemessages"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "switch",
+      "category": "workflow",
+      "folder": "switch",
+      "path": "switch/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "ParseJson",
+        "Switch",
+        "Wait",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "switch",
+        "request",
+        "parsejson",
+        "wait",
+        "response",
+        "branching",
+        "json",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "xml-compose",
+      "category": "workflow",
+      "folder": "xml-compose",
+      "path": "xml-compose/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "xmlCompose",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "xml",
+        "compose",
+        "request",
+        "xmlcompose",
+        "response",
+        "transform",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "xml-parse",
+      "category": "workflow",
+      "folder": "xml-parse",
+      "path": "xml-parse/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "xmlParse",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "xml",
+        "parse",
+        "request",
+        "xmlparse",
+        "response",
+        "transform",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "xml-parse-then-compose",
+      "category": "workflow",
+      "folder": "xml-parse-then-compose",
+      "path": "xml-parse-then-compose/workflow.json",
+      "kind": "Stateful",
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "xmlParse",
+        "xmlCompose",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "xml",
+        "parse",
+        "then",
+        "compose",
+        "request",
+        "xmlparse",
+        "xmlcompose",
+        "response",
+        "transform",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "xml-transform-xslt",
+      "category": "workflow",
+      "folder": "xml-transform-xslt",
+      "path": "xml-transform-xslt/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "Xslt",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 3,
+      "tags": [
+        "xml",
+        "transform",
+        "xslt",
+        "request",
+        "response",
+        "http"
+      ],
+      "provenance": null
+    },
+    {
+      "id": "xml-validate",
+      "category": "workflow",
+      "folder": "xml-validate",
+      "path": "xml-validate/workflow.json",
+      "kind": null,
+      "triggerTypes": [
+        "Request"
+      ],
+      "actionTypes": [
+        "xmlValidation",
+        "Response"
+      ],
+      "serviceProviderIds": [],
+      "operationIds": [],
+      "apiConnectionRefs": [],
+      "hasSplitOn": false,
+      "actionCount": 2,
+      "tags": [
+        "xml",
+        "validate",
+        "request",
+        "xmlvalidation",
+        "response",
+        "transform",
+        "http"
+      ],
+      "provenance": null
+    }
+  ]
+}

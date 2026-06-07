@@ -1,0 +1,19 @@
+{
+  "description": "CyclicFlow has stepA -> stepB -> stepA (back-edge). UnreachableFlow's middle step 'orphan' is skipped by entry's next=finish.",
+  "phase9Findings": [
+    {
+      "ruleId": "STEP_CYCLE",
+      "severity": 1,
+      "location": "flows[CyclicFlow]",
+      "expectedMessageFragment": "CyclicFlow has a cycle: stepA → stepB → stepA"
+    },
+    {
+      "ruleId": "STEP_UNREACHABLE",
+      "severity": 2,
+      "location": "flows[UnreachableFlow].steps[orphan]",
+      "expectedMessageFragment": "step 'orphan' is not reachable from the entry step"
+    }
+  ],
+  "verdict": "BLOCKED",
+  "notes": "STEP_CYCLE is Sev-1 so verdict is BLOCKED. STEP_UNREACHABLE alone would be Sev-2 (not blocking)."
+}

@@ -1,0 +1,23 @@
+{
+  "name": "spec2integration-<plat>",
+  "version": "0.1.0",
+  "description": "Spec2Integration platform pack for <Platform Name>.",
+  "integrationPlatform": "<plat>",
+  "capabilities": ["compile", "deploy", "test"],
+  "agents": [
+    "<plat>-compiler",
+    "<plat>-connections-binder",
+    "<plat>-infra-author",
+    "<plat>-workflow-tester",
+    "<plat>-cicd-author",
+    "<plat>-reviewer"
+  ],
+  "commands": [
+    "implement-<plat>",
+    "test-<plat>",
+    "deploy-<plat>"
+  ],
+  "skills": [
+    "eip-to-<plat>-mapping"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/renameFile/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "renameFile",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "FileSystem renameFile. newName is the new file name (not a full path) — the file remains in its parent directory."
+}

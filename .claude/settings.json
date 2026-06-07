@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh api *)",
+      "Bash(Get-ChildItem -Path . -Directory -Force)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Read(//c/AVN-Agents/agentic-integration-framework/**)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\AIAgents\\\\spec2integration\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\AIAgents\\\\spec2integration\\\\src\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\AIAgents\\\\spec2integration\\\\examples\" -Directory | ForEach-Object { $_.Name })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\AIAgents\\\\spec2integration\\\\templates\" -Directory | ForEach-Object { $_.Name })",
+      "Bash(npx -y ajv-cli validate *)",
+      "Bash(npx -y @stoplight/spectral-cli lint *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet run *)",
+      "Bash(awk '/^function/{depth++} /^}/{depth--} {if\\(depth==0\\) print NR\": \"$0}' scripts/refresh-status.ps1)",
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(xargs -0 sed -i -e 's|plugins/core/skills/|.claude/skills/|g' -e 's|plugins/biztalk/skills/|.claude/skills/|g' -e 's|plugins/azure-pack/skills/|.claude/skills/|g' -e 's|plugins/core/agents/|.claude/agents/|g' -e 's|plugins/biztalk/agents/|.claude/agents/|g' -e 's|plugins/azure-pack/agents/|.claude/agents/|g' -e 's|plugins/core/commands/|.claude/commands/|g' -e 's|plugins/biztalk/commands/|.claude/commands/|g' -e 's|plugins/azure-pack/commands/|.claude/commands/|g')",
+      "Bash(if [ -d \"C:/Projects/BizTalk-Combined\" ]; then echo \"INPUT_EXISTS\"; ls \"C:/Projects/BizTalk-Combined\" | head -50; else echo \"INPUT_MISSING\"; fi)",
+      "Read(//c/Projects/BizTalk-Combined/**)",
+      "Skill(biztalk-inventory)",
+      "Skill(biztalk-inventory:*)",
+      "Bash(pwsh -NoProfile -Command \"if \\(Test-Path 'C:\\\\Projects\\\\BizTalk-Combined'\\) { Write-Output 'EXISTS' } else { Write-Output 'MISSING' }; Get-ChildItem -Path 'C:\\\\Projects\\\\BizTalk-Combined' -Recurse -Filter '*.btproj' | Select-Object -ExpandProperty FullName\")"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/refresh-status.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}

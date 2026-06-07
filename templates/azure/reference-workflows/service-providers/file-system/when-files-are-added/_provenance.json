@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/whenFilesAreAdded/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "whenFilesAreAdded",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "FileSystem Polling trigger that fires on new files only (added since last poll). Returns metadata — per workflow-json-rules §5.2 the compiler MUST chain a getFileContent action after this trigger before any processing step that consumes the file body."
+}

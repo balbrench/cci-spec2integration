@@ -1,0 +1,8 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/OpenAI/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "serviceProviderId": "/serviceProviders/OpenAI",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Three OpenAI parameter sets: KeyAndEndpointConnection (API key), ManagedServiceIdentity (system-assigned MI — preferred for cloud), ActiveDirectoryOAuth (client cert). Endpoint always pulled from openAI_openAIEndpoint app setting. The binder must pick exactly ONE block per environment based on identityConfig in the IR."
+}

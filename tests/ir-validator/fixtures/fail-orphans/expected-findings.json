@@ -1,0 +1,31 @@
+{
+  "description": "Working PurchaseOrderFlow plus four orphan top-level declarations. All four orphan checks should fire as Sev-3 (informational, verdict stays PASS unless other Sev-1 issues exist).",
+  "phase9Findings": [
+    {
+      "ruleId": "CHANNEL_UNUSED",
+      "severity": 3,
+      "location": "channels[orphanCh]",
+      "expectedMessageFragment": "channel 'orphanCh' is declared but never referenced"
+    },
+    {
+      "ruleId": "MESSAGE_UNUSED",
+      "severity": 3,
+      "location": "messages[OrphanMsg]",
+      "expectedMessageFragment": "message 'OrphanMsg' is declared but never referenced"
+    },
+    {
+      "ruleId": "MAPPING_UNUSED",
+      "severity": 3,
+      "location": "mappings[OrphanMapping]",
+      "expectedMessageFragment": "mapping 'OrphanMapping' is declared but never referenced by any step"
+    },
+    {
+      "ruleId": "DEPENDENCY_UNUSED",
+      "severity": 3,
+      "location": "dependencies[orphanDep]",
+      "expectedMessageFragment": "dependency 'orphanDep' is declared but never referenced"
+    }
+  ],
+  "verdict": "PASS",
+  "notes": "All four orphan checks are Sev-3 (informational). Verdict remains PASS because there are no Sev-1 findings. To turn these into BLOCKING errors, set metadata.draft: false (default for non-greenfield) — but greenfield + draft would suppress them per the Phase 9 rule."
+}

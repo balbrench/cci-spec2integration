@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/KeyVault/getSecret/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "getSecret",
+  "serviceProviderId": "/serviceProviders/keyVault",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Key Vault built-in connector — fetches the latest version of a secret at runtime. Prefer over baking a value into appsettings when the secret rotates frequently or when the workflow needs to react to rotation immediately. Auth: the connection uses the Logic App's managed identity; the binder must grant 'Key Vault Secrets User' on the target vault."
+}

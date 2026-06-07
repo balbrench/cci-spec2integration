@@ -1,0 +1,8 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/EventHubServiceProvider/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "sha": "5dfba6be3d09507e83338a50f61f0cf84362f9b9",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Event Hub built-in service provider. Connection-string variant. Upstream also has an Outlook managedApiConnections block in the same file — omitted here as it's unrelated. Preferred over Aad/EventHubAuthorization variants for migration simplicity; switch to Aad-based parameterSet when managed identity is in scope."
+}

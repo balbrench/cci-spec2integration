@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/createFile/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "createFile",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "FileSystem createFile pattern. Concrete sample paths in upstream replaced with ###body### / ###filePath### placeholders so the compiler binds from the IR. The non-empty body variant; for the empty file variant see create-file-empty/."
+}

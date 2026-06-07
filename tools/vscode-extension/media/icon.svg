@@ -1,0 +1,20 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#9333ea"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <!-- A bold, filled take on the sidebar's three-node pipeline motif. -->
+  <g stroke="#ffffff" stroke-width="14" stroke-linecap="round" fill="none" opacity="0.92">
+    <path d="M64 70 H192"/>
+    <path d="M72 84 L120 178"/>
+    <path d="M184 84 L136 178"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="64" cy="70" r="26"/>
+    <circle cx="192" cy="70" r="26"/>
+    <circle cx="128" cy="186" r="26"/>
+  </g>
+</svg>

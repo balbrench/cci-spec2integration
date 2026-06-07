@@ -1,0 +1,59 @@
+{
+  "managedApiConnections": {
+    "msnweather": {
+      "api": {
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/providers/Microsoft.Web/locations/@{appsetting('WORKFLOWS_LOCATION_NAME')}/managedApis/msnweather"
+      },
+      "connection": {
+        "id": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.Web/connections/msnweather"
+      },
+      "connectionRuntimeUrl": "@parameters('msnweather-ConnectionRuntimeUrl')",
+      "authentication": "@parameters('msnweather-Authentication')"
+    }
+  },
+  "agentConnections": {
+    "agentConnection_model_key": {
+      "type": "model",
+      "endpoint": "@appsetting('openAI_openAIEndpoint')",
+      "resourceId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.CognitiveServices/accounts/@{appsetting('openAI_accountName')}",
+      "displayName": "###display-name###",
+      "authentication": {
+        "type": "Key",
+        "key": "@appsetting('openAI_openAIKey')"
+      }
+    },
+    "agentConnection_foundry_oauth": {
+      "type": "FoundryAgentService",
+      "endpoint": "@appsetting('foundry_projectEndpoint')",
+      "resourceId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.CognitiveServices/accounts/@{appsetting('foundry_accountName')}/projects/@{appsetting('foundry_projectName')}",
+      "displayName": "###display-name###",
+      "authentication": {
+        "type": "ActiveDirectoryOAuth",
+        "clientId": "@appsetting('foundry_clientId')",
+        "pfx": "@appsetting('foundry_clientCertPfx')",
+        "tenant": "@appsetting('foundry_tenantId')",
+        "credentialType": "Certificate",
+        "password": ""
+      }
+    },
+    "agentConnection_apim_key": {
+      "type": "APIMGenAIGateway",
+      "endpoint": "@appsetting('apim_genAIEndpoint')",
+      "resourceId": "/subscriptions/@{appsetting('WORKFLOWS_SUBSCRIPTION_ID')}/resourceGroups/@{appsetting('WORKFLOWS_RESOURCE_GROUP_NAME')}/providers/Microsoft.ApiManagement/service/@{appsetting('apim_serviceName')}/apis/@{appsetting('apim_apiName')}",
+      "displayName": "###display-name###",
+      "authentication": {
+        "type": "Key",
+        "key": "@appsetting('apim_genAIAPIKey')"
+      }
+    },
+    "agentConnection_model_key_simple": {
+      "type": "model",
+      "endpoint": "@appsetting('openAI_openAIEndpoint')",
+      "displayName": "###display-name###",
+      "authentication": {
+        "type": "Key",
+        "key": "@appsetting('openAI_openAIKey')"
+      }
+    }
+  }
+}

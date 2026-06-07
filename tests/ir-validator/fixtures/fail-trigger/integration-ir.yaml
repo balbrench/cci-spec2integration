@@ -1,0 +1,80 @@
+apiVersion: spec2integration/v1
+kind: Integration
+metadata:
+  name: fail-trigger
+  domain: testing
+  owner: ir-validator-fixtures
+  description: One flow triggers on an outbound channel (direction invalid). Two other flows share the same inbound HTTP channel as their trigger (multi-consumer on HTTP is almost always a routing bug).
+  scenario: greenfield
+
+channels:
+  - name: sharedHttp
+    kind: http
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: outboundQueue
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: sinkQueue
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+messages:
+  - name: PurchaseOrder
+    schemaRef: contracts/schemas/PurchaseOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    idempotencyKey: body.orderId
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+flows:
+  # TRIGGER_CHANNEL_DIRECTION_INVALID: trigger points at an outbound channel.
+  - name: WrongDirectionFlow
+    stateful: true
+    trigger: outboundQueue
+    steps:
+      - id: doSomething
+        type: send
+        channel: sinkQueue
+
+  # TRIGGER_HTTP_CHANNEL_SHARED: two flows on the same HTTP inbound channel.
+  - name: HttpConsumerOneFlow
+    stateful: true
+    trigger: sharedHttp
+    steps:
+      - id: receive
+        type: receive
+        channel: sharedHttp
+        next: forward
+      - id: forward
+        type: send
+        channel: sinkQueue
+
+  - name: HttpConsumerTwoFlow
+    stateful: true
+    trigger: sharedHttp
+    steps:
+      - id: receive
+        type: receive
+        channel: sharedHttp
+        next: forward
+      - id: forward
+        type: send
+        channel: outboundQueue

@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/updateFile-fromGetContent/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "updateFile",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Read-then-replace composite: getFileContent → updateFile. Use when content is computed from another file's body but the destination already exists."
+}

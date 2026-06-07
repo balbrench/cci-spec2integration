@@ -1,0 +1,68 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "templates", "templates", "{808186BE-9BD0-DD1D-D574-36EEAD1E7F8F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "azure", "azure", "{D9CCB412-F892-09E3-1C26-09043728A1CE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B52A4910-B212-F7D3-F44A-5B31C10EB6E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LogicAppUnit", "templates\azure\tests\LogicAppUnit.csproj", "{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "pipeline", "pipeline", "{9060CA92-3A34-9796-BFC5-7D41828AC5E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowTester", "src\pipeline\FlowTester\FlowTester.csproj", "{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Debug|x64.Build.0 = Debug|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Debug|x86.Build.0 = Debug|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Release|x64.ActiveCfg = Release|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Release|x64.Build.0 = Release|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Release|x86.ActiveCfg = Release|Any CPU
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450}.Release|x86.Build.0 = Release|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Debug|x64.Build.0 = Debug|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Debug|x86.Build.0 = Debug|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Release|x64.ActiveCfg = Release|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Release|x64.Build.0 = Release|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Release|x86.ActiveCfg = Release|Any CPU
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D9CCB412-F892-09E3-1C26-09043728A1CE} = {808186BE-9BD0-DD1D-D574-36EEAD1E7F8F}
+		{B52A4910-B212-F7D3-F44A-5B31C10EB6E6} = {D9CCB412-F892-09E3-1C26-09043728A1CE}
+		{EE47D1EB-82BC-B6EB-F4A8-CBF8C95D9450} = {B52A4910-B212-F7D3-F44A-5B31C10EB6E6}
+		{9060CA92-3A34-9796-BFC5-7D41828AC5E6} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{F59560FC-DEF5-4EB0-8C81-F9BEC603444D} = {9060CA92-3A34-9796-BFC5-7D41828AC5E6}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D0D12D9E-C54E-4CB9-ADEA-1BF09979F74E}
+	EndGlobalSection
+EndGlobal

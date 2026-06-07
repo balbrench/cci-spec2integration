@@ -1,0 +1,8 @@
+{
+  "upstream": ".github/skills/logic-apps/references/reference-catalog/workflows/HttpRequestTrigger/HttpRequestTriggerWithWaitAndAsyncResponse.json",
+  "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+  "originalSource": "Azure Logic Apps runtime reference corpus",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Long-running HTTP request with 'operationOptions: Asynchronous' on the Response action — the caller receives a 202 Accepted with a polling URL, and Logic Apps drives the wait. Upstream Mustache placeholder '{{WaitTimeInSecondsPlaceHolder}}' resolved to 30 seconds; substitute the real interval at emission. The Wait action with 'unit: Second' is the canonical delay shape — do not invent."
+}

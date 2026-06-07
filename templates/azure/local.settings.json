@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_INPROC_NET8_ENABLED": "1",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "AzureWebJobsFeatureFlags": "EnableMultiLanguageWorker",
+    "APP_KIND": "workflowapp",
+    "ProjectDirectoryPath": "",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "",
+    "WORKFLOWS_TENANT_ID": "",
+    "WORKFLOWS_SUBSCRIPTION_ID": "",
+    "WORKFLOWS_RESOURCE_GROUP_NAME": "",
+    "WORKFLOWS_LOCATION_NAME": ""
+  }
+}

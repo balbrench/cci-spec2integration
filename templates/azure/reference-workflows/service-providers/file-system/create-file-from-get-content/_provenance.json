@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/createFile-fromGetContent/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "createFile",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Read-then-write composite: getFileContent → createFile. Canonical shape for 'copy file' via content read + new file write when copyFile semantics are not desired (e.g. translating path layout, recomputing destination)."
+}

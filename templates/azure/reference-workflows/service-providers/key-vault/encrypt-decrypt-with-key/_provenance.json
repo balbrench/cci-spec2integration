@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/KeyVault/encryptDataWithKey-decryptDataWithKey/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationIds": ["encryptDataWithKey", "decryptDataWithKey"],
+  "serviceProviderId": "/serviceProviders/keyVault",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Round-trip encrypt+decrypt against an asymmetric key in Key Vault (RSA-OAEP shown). The decrypt step references the encrypt body via @body('Encrypt_data_with_key')?['encryptedData'] — preserve that exact expression shape. Auth: managed identity with 'Key Vault Crypto User' on the target vault."
+}

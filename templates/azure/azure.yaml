@@ -1,0 +1,7 @@
+name: <workload>
+metadata:
+  template: spec2integration-azure@0.1.0
+infra:
+  provider: bicep
+  path: infra
+  module: main

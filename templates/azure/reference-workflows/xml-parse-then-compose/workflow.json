@@ -1,0 +1,42 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "actions": {
+      "XML_parse_with_schema": {
+        "type": "xmlParse",
+        "runAfter": {},
+        "inputs": {
+          "content": "###content###",
+          "schema": { "name": "###schema###", "source": "LogicApp" },
+          "jsonWriterSettings": { "ignoreAttributes": false }
+        }
+      },
+      "XML_compose_with_schema": {
+        "type": "xmlCompose",
+        "runAfter": { "XML_parse_with_schema": [ "Succeeded" ] },
+        "inputs": {
+          "content": "@body('XML_parse_with_schema')?['json']",
+          "schema": { "name": "###schema###", "source": "LogicApp" }
+        }
+      },
+      "Response": {
+        "inputs": {
+          "body": "@body('XML_compose_with_schema')?['xml']",
+          "statusCode": 200
+        },
+        "kind": "Http",
+        "runAfter": { "XML_compose_with_schema": [ "Succeeded" ] },
+        "type": "Response"
+      }
+    },
+    "outputs": {},
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

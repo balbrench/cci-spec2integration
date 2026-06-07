@@ -1,0 +1,25 @@
+{
+  "managedApiConnections": {},
+  "serviceProviderConnections": {
+    "AzureBlob": {
+      "displayName": "###display-name###",
+      "parameterSetName": "connectionString",
+      "parameterValues": {
+        "connectionString": "@appsetting('AzureBlob_connectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/AzureBlob"
+      }
+    },
+    "azurequeues": {
+      "displayName": "###display-name###",
+      "parameterSetName": "connectionString",
+      "parameterValues": {
+        "connectionString": "@appsetting('azurequeues_connectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/azurequeues"
+      }
+    }
+  }
+}

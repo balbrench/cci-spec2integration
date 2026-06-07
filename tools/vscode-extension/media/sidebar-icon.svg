@@ -1,0 +1,11 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- A simple pipeline: three linked nodes. Uses currentColor so VS Code themes it. -->
+  <g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="5" cy="6" r="2.4"/>
+    <circle cx="12" cy="18" r="2.4"/>
+    <circle cx="19" cy="6" r="2.4"/>
+    <path d="M6.7 7.7 10.6 16.1"/>
+    <path d="M17.3 7.7 13.4 16.1"/>
+    <path d="M7.4 6 16.6 6"/>
+  </g>
+</svg>

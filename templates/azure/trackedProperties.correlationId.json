@@ -1,0 +1,7 @@
+{
+  "trackedProperties": {
+    "correlationId": "@{coalesce(triggerOutputs()?['headers']?['x-correlation-id'], triggerOutputs()?['headers']?['traceparent'], guid())}",
+    "flowName": "@{workflow().name}",
+    "runId": "@{workflow().run.name}"
+  }
+}

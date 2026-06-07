@@ -1,0 +1,8 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/BatchTrigger/childbatchtrigger.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "sha": "5dfba6be3d09507e83338a50f61f0cf84362f9b9",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Child workflow: receives a batch via the Batch trigger with release criteria. Pair with batch-send/."
+}

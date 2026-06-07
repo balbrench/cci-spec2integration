@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/listFolder/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "listFolder",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "FileSystem listFolder. enableRecursiveListing is a string 'True'/'False' (Logic Apps Standard runtime expects string boolean here)."
+}

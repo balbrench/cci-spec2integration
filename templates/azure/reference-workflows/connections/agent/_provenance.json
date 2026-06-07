@@ -1,0 +1,7 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/Agent/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Full connection scaffold for an Agent-action workflow. Includes (a) managed-API connection used by an example tool (msnweather), and (b) four agentConnections variants: AzureOpenAI with key, AzureOpenAI with managed identity, Foundry Agent Service with OAuth/cert, APIM GenAI Gateway with key, and a key-only model variant without resourceId. Subscription/resourceGroup hardcodes from upstream have been replaced with @appsetting refs. The compiler picks ONE agentConnection per Agent action and references it via inputs.parameters.modelConfigurations.<n>.referenceName."
+}

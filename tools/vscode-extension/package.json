@@ -1,0 +1,525 @@
+{
+  "name": "spec2integration",
+  "displayName": "Spec2Integration Pipeline",
+  "description": "In-IDE project launcher, navigator and guided command composer for the Spec2Integration spec-driven integration pipeline. Scaffolds greenfield or BizTalk-migration workspaces (bundled agents/skills/commands), shows every integration's pipeline stages live from status.json, and hands assembled slash commands to your Claude Code chat.",
+  "version": "0.9.1",
+  "publisher": "BalbirSingh",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/balbrench/cci-spec2integration.git"
+  },
+  "bugs": {
+    "url": "https://github.com/balbrench/cci-spec2integration/issues"
+  },
+  "homepage": "https://github.com/balbrench/cci-spec2integration#readme",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#4f46e5",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "integration",
+    "pipeline",
+    "biztalk",
+    "azure"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.spec2integration/state.json",
+    "workspaceContains:**/specs/**/status.json",
+    "onView:spec2integration.pipeline",
+    "onCommand:spec2integration.newProject",
+    "onCommand:spec2integration.updateAssets",
+    "onLanguage:yaml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "spec2integration",
+          "title": "Spec2Integration",
+          "icon": "media/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "spec2integration": [
+        {
+          "id": "spec2integration.pipeline",
+          "name": "Pipeline",
+          "icon": "media/sidebar-icon.svg",
+          "contextualTitle": "Spec2Integration Pipeline"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "spec2integration.pipeline",
+        "when": "spec2integration.noWorkspace",
+        "contents": "Start a new integration project.\n\nThe extension scaffolds a workspace pre-loaded with the right agents, skills and commands for your path, then opens it ready for Claude Code.\n[$(sparkle) Start a Greenfield integration](command:spec2integration.newProject?%5B%22greenfield%22%5D)\n[$(history) Migrate from BizTalk](command:spec2integration.newProject?%5B%22biztalk%22%5D)\n\nAlready have a project? Open its folder to see its pipeline here.\n[Refresh bundled assets from GitHub](command:spec2integration.updateAssets)"
+      },
+      {
+        "view": "spec2integration.pipeline",
+        "when": "!spec2integration.noWorkspace && spec2integration.isBiztalk && !spec2integration.biztalkSourceSet",
+        "contents": "Migrate a BizTalk solution.\n\n**Step 1** — tell the extension where your BizTalk solution lives: the folder containing the `.btproj` files (or an MSI export). It can be anywhere on disk.\n[$(folder-opened) Specify BizTalk Source Folder](command:spec2integration.setBiztalkSource)\n\nOnce set, this becomes **Run Pipeline** — which inventories the solution, authors the spec and contracts, compiles the IR, and runs through to tests."
+      },
+      {
+        "view": "spec2integration.pipeline",
+        "when": "!spec2integration.noWorkspace && spec2integration.isBiztalk && spec2integration.biztalkSourceSet",
+        "contents": "BizTalk source set. ✓\n\n**Step 2 — Analyse.** Catalog the solution (inventory + catalogue). Each integration group then appears under the BizTalk node, where **Run Pipeline** migrates the one you pick (or All), with option checkboxes (unattended, auto-fix…).\n[$(search) Analyse Solution](command:spec2integration.analyseSolution)\n\n[$(folder-opened) Change source folder](command:spec2integration.setBiztalkSource) · [Compose a command](command:spec2integration.composeCommand)\n\nThe BizTalk node and its groups appear here once analysis writes the catalogue under `specs/biztalk/`."
+      },
+      {
+        "view": "spec2integration.pipeline",
+        "when": "!spec2integration.noWorkspace && !spec2integration.isBiztalk",
+        "contents": "No integrations found yet.\n\nStart a new project, or compose a command — the wizard helps you pick options, then sends the assembled slash command to your Claude Code chat.\n[$(rocket) New integration project](command:spec2integration.newProject)\n[$(run-all) Run Pipeline](command:spec2integration.runFullPipeline)\n[Compose a command](command:spec2integration.composeCommand)\n\nAs the pipeline produces `status.json` files under `specs/`, integrations appear here automatically."
+      }
+    ],
+    "commands": [
+      {
+        "command": "spec2integration.newProject",
+        "title": "New Integration Project…",
+        "category": "Spec2Integration",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "spec2integration.runReverseEngineer",
+        "title": "Reverse-engineer to spec + contracts + IR",
+        "category": "Spec2Integration",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "spec2integration.runFullPipeline",
+        "title": "Run Pipeline…",
+        "category": "Spec2Integration",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "spec2integration.setBiztalkSource",
+        "title": "Specify BizTalk Source Folder…",
+        "category": "Spec2Integration",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "spec2integration.analyseSolution",
+        "title": "Analyse BizTalk Solution",
+        "category": "Spec2Integration",
+        "icon": "$(search)"
+      },
+      {
+        "command": "spec2integration.migrateGroup",
+        "title": "Migrate This Group",
+        "category": "Spec2Integration",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "spec2integration.deploy",
+        "title": "Deploy",
+        "category": "Spec2Integration",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "spec2integration.openDeployedUrl",
+        "title": "Open Deployed App",
+        "category": "Spec2Integration",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "spec2integration.startBizTalkMigration",
+        "title": "Start BizTalk Migration…",
+        "category": "Spec2Integration",
+        "icon": "$(history)"
+      },
+      {
+        "command": "spec2integration.updateAssets",
+        "title": "Update Pipeline Assets from GitHub",
+        "category": "Spec2Integration",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "spec2integration.openProgress",
+        "title": "Open Pipeline Progress",
+        "category": "Spec2Integration",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "spec2integration.resetSession",
+        "title": "Reset Pipeline Chat Session",
+        "category": "Spec2Integration",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "spec2integration.composeCommand",
+        "title": "Compose Command…",
+        "category": "Spec2Integration",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "spec2integration.runNext",
+        "title": "Run Recommended Next Step",
+        "category": "Spec2Integration",
+        "icon": "$(play)"
+      },
+      {
+        "command": "spec2integration.runStage",
+        "title": "Run This Stage",
+        "category": "Spec2Integration",
+        "icon": "$(play)"
+      },
+      {
+        "command": "spec2integration.setActive",
+        "title": "Set as Active Integration",
+        "category": "Spec2Integration",
+        "icon": "$(target)"
+      },
+      {
+        "command": "spec2integration.openVisualizer",
+        "title": "Open IR Visualizer",
+        "category": "Spec2Integration",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "spec2integration.openArtifact",
+        "title": "Open Artifact",
+        "category": "Spec2Integration",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spec2integration.previewArtifact",
+        "title": "Open Preview",
+        "category": "Spec2Integration",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "spec2integration.openReport",
+        "title": "Open Report",
+        "category": "Spec2Integration",
+        "icon": "$(output)"
+      },
+      {
+        "command": "spec2integration.openDomain",
+        "title": "Open domain.yaml",
+        "category": "Spec2Integration",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "spec2integration.refresh",
+        "title": "Refresh",
+        "category": "Spec2Integration",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "spec2integration.newProject",
+          "when": "view == spec2integration.pipeline",
+          "group": "navigation@1"
+        },
+        {
+          "command": "spec2integration.setBiztalkSource",
+          "when": "view == spec2integration.pipeline && !spec2integration.noWorkspace && spec2integration.isBiztalk",
+          "group": "navigation@2"
+        },
+        {
+          "command": "spec2integration.runFullPipeline",
+          "when": "view == spec2integration.pipeline && !spec2integration.noWorkspace",
+          "group": "navigation@3"
+        },
+        {
+          "command": "spec2integration.composeCommand",
+          "when": "view == spec2integration.pipeline && !spec2integration.noWorkspace",
+          "group": "navigation@3"
+        },
+        {
+          "command": "spec2integration.openProgress",
+          "when": "view == spec2integration.pipeline && !spec2integration.noWorkspace",
+          "group": "navigation@4"
+        },
+        {
+          "command": "spec2integration.refresh",
+          "when": "view == spec2integration.pipeline && !spec2integration.noWorkspace",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "spec2integration.runNext",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "inline@1"
+        },
+        {
+          "command": "spec2integration.openVisualizer",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "inline@2"
+        },
+        {
+          "command": "spec2integration.openProgress",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "spec2integration.setActive",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "spec2integration.deploy",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "1_actions@3"
+        },
+        {
+          "command": "spec2integration.runFullPipeline",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "1_actions@4"
+        },
+        {
+          "command": "spec2integration.runFullPipeline",
+          "when": "view == spec2integration.pipeline && viewItem == biztalkSolution",
+          "group": "inline@1"
+        },
+        {
+          "command": "spec2integration.setBiztalkSource",
+          "when": "view == spec2integration.pipeline && viewItem == biztalkSolution",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "spec2integration.openProgress",
+          "when": "view == spec2integration.pipeline && viewItem == biztalkSolution",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "spec2integration.migrateGroup",
+          "when": "view == spec2integration.pipeline && viewItem == biztalkGroup",
+          "group": "inline@1"
+        },
+        {
+          "command": "spec2integration.openDomain",
+          "when": "view == spec2integration.pipeline && viewItem =~ /domain-yaml/",
+          "group": "inline@1"
+        },
+        {
+          "command": "spec2integration.openDeployedUrl",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\bdeployed\\b/",
+          "group": "inline@0"
+        },
+        {
+          "command": "spec2integration.openArtifact",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\bartifact\\b/",
+          "group": "inline@1"
+        },
+        {
+          "command": "spec2integration.previewArtifact",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\bpreviewable\\b/",
+          "group": "inline@2"
+        },
+        {
+          "command": "spec2integration.openReport",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\breport\\b/",
+          "group": "inline@3"
+        },
+        {
+          "command": "spec2integration.runStage",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\brunnable\\b/",
+          "group": "inline@4"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "spec2integration.startBizTalkMigration",
+          "when": "!spec2integration.noWorkspace"
+        },
+        {
+          "command": "spec2integration.runReverseEngineer",
+          "when": "!spec2integration.noWorkspace && spec2integration.isBiztalk"
+        },
+        {
+          "command": "spec2integration.setBiztalkSource",
+          "when": "!spec2integration.noWorkspace && spec2integration.isBiztalk"
+        },
+        {
+          "command": "spec2integration.analyseSolution",
+          "when": "!spec2integration.noWorkspace && spec2integration.isBiztalk"
+        },
+        {
+          "command": "spec2integration.runFullPipeline",
+          "when": "!spec2integration.noWorkspace"
+        },
+        {
+          "command": "spec2integration.deploy",
+          "when": "!spec2integration.noWorkspace"
+        },
+        {
+          "command": "spec2integration.migrateGroup",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.openDeployedUrl",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.runStage",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.openArtifact",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.previewArtifact",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.openReport",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.openDomain",
+          "when": "false"
+        },
+        {
+          "command": "spec2integration.setActive",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Spec2Integration",
+      "properties": {
+        "spec2integration.chatDelivery": {
+          "type": "string",
+          "enum": [
+            "command",
+            "deeplink",
+            "clipboard"
+          ],
+          "default": "command",
+          "enumDescriptions": [
+            "Open a new Claude Code conversation pre-filled with the assembled command via the extension's in-process command (no OS round-trip). Falls back to the deep link, then the clipboard, if the command is unavailable.",
+            "Open the Claude Code chat pre-filled with the assembled command via a vscode:// deep link. Falls back to the clipboard if the link is rejected.",
+            "Copy the assembled command to the clipboard and show a notification to paste it into chat."
+          ],
+          "description": "How an assembled slash command is handed to Claude Code. 'command' is the most reliable (direct in-process call); switch to 'deeplink' or 'clipboard' if a future Claude Code version renames its internal command. Note: all modes open a NEW conversation — Claude Code does not allow injecting into an already-open session."
+        },
+        "spec2integration.deepLinkScheme": {
+          "type": "string",
+          "default": "vscode://anthropic.claude-code/open",
+          "description": "The vscode:// deep-link target used to open the Claude Code chat with a prompt. The assembled command is appended as ?prompt=<encoded>. Adjust if your Claude Code extension uses a different URI."
+        },
+        "spec2integration.previewBeforeSend": {
+          "type": "boolean",
+          "default": true,
+          "description": "Before delivering an assembled command, show it in an editable box for review. Turn off to send immediately."
+        },
+        "spec2integration.continueSession": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep an entire pipeline run in a single Claude Code conversation tab instead of opening a new one per command. The first command mints a reusable session via one tool-free headless `claude -p` call (no permission prompts); later commands resume it via the documented `session=` deep link and refocus its tab. Requires the `claude` CLI on PATH and signed in; falls back to a new conversation if a session can't be established. Use 'Reset Pipeline Chat Session' to start a fresh one."
+        },
+        "spec2integration.claudeCliPath": {
+          "type": "string",
+          "default": "claude",
+          "description": "Path to the Claude Code CLI used to mint a reusable session when `continueSession` is enabled. Override if `claude` is not on your PATH."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "gettingStarted.greenfield",
+        "title": "Greenfield: brief → deployable integration",
+        "description": "Drive a rough brief to a deployable integration through the guided pipeline.",
+        "steps": [
+          {
+            "id": "draftPrd",
+            "title": "Draft the PRD",
+            "description": "Turn your brief into a structured PRD. The new project opened with this step ready to send.\n[Draft PRD](command:spec2integration.composeCommand)",
+            "media": { "markdown": "media/walkthrough/greenfield-01-brief.md" }
+          },
+          {
+            "id": "specify",
+            "title": "Specify → model → contracts → map → architect",
+            "description": "Advance one stage at a time, or let /run-pipeline orchestrate the whole flow. Each stage records its result in status.json.\n[Compose a command](command:spec2integration.composeCommand)",
+            "media": { "markdown": "media/walkthrough/02-compose.md" }
+          },
+          {
+            "id": "runNext",
+            "title": "Advance the pipeline",
+            "description": "Each integration records its recommended next step. Run it from the tree, the status bar, or the command palette.\n[Run Next Step](command:spec2integration.runNext)",
+            "media": { "markdown": "media/walkthrough/03-next.md" }
+          },
+          {
+            "id": "progress",
+            "title": "Watch progress live",
+            "description": "Open the progress cockpit for a live stage table, coverage and timings; stage-completion and Sev-1 toasts surface as the pipeline runs.\n[Open Pipeline Progress](command:spec2integration.openProgress)",
+            "media": { "markdown": "media/walkthrough/04-status.md" }
+          },
+          {
+            "id": "visualize",
+            "title": "Visualize the IR",
+            "description": "Open the integration-ir.yaml as an interactive flow graph.\n[Open IR Visualizer](command:spec2integration.openVisualizer)",
+            "media": { "markdown": "media/walkthrough/05-visualize.md" }
+          }
+        ]
+      },
+      {
+        "id": "gettingStarted.biztalk",
+        "title": "BizTalk: migrate to Azure Integration Services",
+        "description": "Analyse a BizTalk solution, then migrate each integration group to Azure one at a time.",
+        "steps": [
+          {
+            "id": "specifySource",
+            "title": "Specify the BizTalk source",
+            "description": "Point the extension at your BizTalk solution — the folder with the `.btproj` files, or an MSI export. It can live anywhere on disk; your choice is remembered.\n[Specify BizTalk Source Folder](command:spec2integration.setBiztalkSource)",
+            "media": { "markdown": "media/walkthrough/biztalk-01-source.md" }
+          },
+          {
+            "id": "analyse",
+            "title": "Analyse the solution",
+            "description": "Catalog every orchestration, map, schema, pipeline and binding, scored by migration complexity, and group them into `INT-NNN` integration boundaries. Each group then appears under the BizTalk node.\n[Analyse Solution](command:spec2integration.analyseSolution)",
+            "media": { "markdown": "media/walkthrough/biztalk-02-inventory.md" }
+          },
+          {
+            "id": "migrateGroup",
+            "title": "Migrate a group",
+            "description": "Run Pipeline lets you pick **one** integration group (or All) and toggle options as checkboxes (unattended, auto-fix, …). It authors the spec, contracts and IR for that group and runs through to tests — each group becomes its own integration. Re-run for the next group.\n[Run Pipeline](command:spec2integration.runFullPipeline)",
+            "media": { "markdown": "media/walkthrough/biztalk-03-reverse.md" }
+          },
+          {
+            "id": "progress",
+            "title": "Watch progress live",
+            "description": "The progress cockpit shows the stage table, generated artifacts, blocked flows (custom code needing attention) and coverage; Sev-1 toasts flag constitution blockers.\n[Open Pipeline Progress](command:spec2integration.openProgress)",
+            "media": { "markdown": "media/walkthrough/04-status.md" }
+          },
+          {
+            "id": "visualize",
+            "title": "Visualize the IR",
+            "description": "Open the integration-ir.yaml as an interactive flow graph, with migration findings overlaid on the nodes.\n[Open IR Visualizer](command:spec2integration.openVisualizer)",
+            "media": { "markdown": "media/walkthrough/05-visualize.md" }
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run sync-assets && npm run bundle",
+    "sync-assets": "node scripts/sync-assets.js",
+    "bundle": "node esbuild.js --production",
+    "compile": "npm run sync-assets && node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "package": "npm run sync-assets && vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  }
+}

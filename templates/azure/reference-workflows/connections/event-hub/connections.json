@@ -1,0 +1,15 @@
+{
+  "managedApiConnections": {},
+  "serviceProviderConnections": {
+    "eventHub": {
+      "displayName": "@appsetting('eventHub_displayName')",
+      "parameterSetName": "connectionString",
+      "parameterValues": {
+        "connectionString": "@appsetting('eventHub_connectionString')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/eventHub"
+      }
+    }
+  }
+}

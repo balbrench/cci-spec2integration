@@ -1,0 +1,126 @@
+﻿name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: azure/setup-azd@v2
+      - name: Lint OpenAPI / AsyncAPI
+        run: |
+          npx -y @stoplight/spectral-cli lint specs/*/contracts/openapi.yaml
+          npx -y @stoplight/spectral-cli lint specs/*/contracts/asyncapi.yaml
+      - name: Validate IR
+        run: npx -y ajv-cli validate -s schemas/integration-ir.schema.json -d "specs/*/integration-ir.yaml"
+      - name: Bicep build
+        run: az bicep build --file infra/main.bicep
+      - name: LogicAppUnit tests
+        run: dotnet test tests/ --logger "trx"
+
+  deploy-dev:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-azd@v2
+      - run: azd provision --no-prompt --environment dev
+      - name: Load azd environment values
+        run: |
+          eval "$(azd env get-values)"
+          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP" >> "$GITHUB_ENV"
+          echo "logicAppName=$logicAppName" >> "$GITHUB_ENV"
+      - name: Build sibling Functions project when present
+        run: |
+          if ls Functions/*.csproj >/dev/null 2>&1; then
+            dotnet build Functions/*.csproj -c Release
+          else
+            echo "No sibling Functions project present."
+          fi
+      - name: Package Logic App content from app/
+        run: |
+          rm -f logicapp.zip
+          (
+            cd app
+            zip -r ../logicapp.zip . \
+              -x "local.settings.json" \
+                 ".vscode/*" \
+                 "workflow-designtime/*" \
+                 ".azurite/*" \
+                 "__azurite_db*__.json" \
+                 "__blobstorage__/*" \
+                 "__queuestorage__/*" \
+                 ".github/*"
+          )
+      - name: Deploy Logic App package
+        run: az functionapp deployment source config-zip --resource-group "$AZURE_RESOURCE_GROUP" --name "$logicAppName" --src logicapp.zip
+      - name: Restart Logic App
+        run: az logicapp restart --name "$logicAppName" --resource-group "$AZURE_RESOURCE_GROUP"
+
+  deploy-prod:
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: azure/setup-azd@v2
+      - run: azd provision --no-prompt --environment prod
+      - name: Load azd environment values
+        run: |
+          eval "$(azd env get-values)"
+          echo "AZURE_RESOURCE_GROUP=$AZURE_RESOURCE_GROUP" >> "$GITHUB_ENV"
+          echo "logicAppName=$logicAppName" >> "$GITHUB_ENV"
+      - name: Build sibling Functions project when present
+        run: |
+          if ls Functions/*.csproj >/dev/null 2>&1; then
+            dotnet build Functions/*.csproj -c Release
+          else
+            echo "No sibling Functions project present."
+          fi
+      - name: Package Logic App content from app/
+        run: |
+          rm -f logicapp.zip
+          (
+            cd app
+            zip -r ../logicapp.zip . \
+              -x "local.settings.json" \
+                 ".vscode/*" \
+                 "workflow-designtime/*" \
+                 ".azurite/*" \
+                 "__azurite_db*__.json" \
+                 "__blobstorage__/*" \
+                 "__queuestorage__/*" \
+                 ".github/*"
+          )
+      - name: Deploy Logic App package
+        run: az functionapp deployment source config-zip --resource-group "$AZURE_RESOURCE_GROUP" --name "$logicAppName" --src logicapp.zip
+      - name: Restart Logic App
+        run: az logicapp restart --name "$logicAppName" --resource-group "$AZURE_RESOURCE_GROUP"

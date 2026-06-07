@@ -1,0 +1,13 @@
+{
+  "description": "Exponential retry policy with PT2M base interval. Schema accepts it (policy/count/interval all set); the Phase 9 semantic check should flag exponential intervals > PT1M.",
+  "phase9Findings": [
+    {
+      "ruleId": "RETRY_INTERVAL_EXCESSIVE",
+      "severity": 3,
+      "location": "errorHandling.retry",
+      "expectedMessageFragment": "exponential"
+    }
+  ],
+  "verdict": "PASS",
+  "notes": "Sev-3 informational. With count=5 and a PT2M base, the 5th retry could be hours away — usually unintended."
+}

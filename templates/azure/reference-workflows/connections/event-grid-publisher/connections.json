@@ -1,0 +1,30 @@
+{
+  "serviceProviderConnections": {
+    "eventGridPublisherConnectionString": {
+      "parameterValues": {
+        "topicEndpoint": "@appsetting('EventGridPublisher_topicEndpoint')",
+        "accessKey": "@appsetting('EventGridPublisher_accessKey')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/eventGridPublisher"
+      }
+    },
+    "eventGridPublisherCloudAadConnection": {
+      "parameterValues": {
+        "authProvider": {
+          "type": "ActiveDirectoryOAuth",
+          "clientId": "@appsetting('EventGridPublisher_aad_clientId')",
+          "pfx": "@appsetting('EventGridPublisher_aad_pfx')",
+          "tenant": "@appsetting('EventGridPublisher_aad_tenant')",
+          "credentialType": "Certificate",
+          "password": ""
+        },
+        "fullyQualifiedNamespace": "@appsetting('EventGridPublisher_fullyQualifiedNamespace')",
+        "topicEndpoint": "@appsetting('EventGridPublisher_topicEndpoint')"
+      },
+      "serviceProvider": {
+        "id": "ServiceProviders/EventGridPublisher"
+      }
+    }
+  }
+}

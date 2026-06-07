@@ -1,0 +1,8 @@
+{
+  "upstream": ".github/skills/logic-apps/references/reference-catalog/workflows/HttpRequestTrigger/SimpleHttpRequestTriggerWithResponse.json",
+  "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+  "originalSource": "Azure Logic Apps runtime reference corpus",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Canonical HTTP request-response shape. Trigger 'manual' is the conventional name for the Request trigger and may be renamed when emitted. Response action requires kind: 'http' to address the original caller."
+}

@@ -1,0 +1,7 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/Agent/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Canonical Agent-action workflow: one Agent_Loop action with two tools (an ApiConnection-based weather lookup and an HTTP notify). Models the standard Logic Apps Standard agent shape — Request trigger with a `question` schema → Agent loop with `tools.<name>.actions.*` describing each tool's sub-DAG → Response surfacing LastAssistantMessage. The agentparameters() expression is how tool actions read inputs the model decided to pass. Pair with connections/agent/ or connections/agent-api/."
+}

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spec2Integration — Pipeline Runner</title>
+<style>
+  :root {
+    --bg:#0e1016; --panel:#171a23; --panel2:#1e222d; --border:#2a2f3c;
+    --text:#e6e9f0; --dim:#9aa3b5; --accent:#7c8ff4; --accent2:#5b6fd6;
+    --ok:#3fb950; --warn:#d29922; --bad:#f85149; --cov:#58a6ff;
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; flex-direction:column; }
+  header { padding:12px 18px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  header .sub { color:var(--dim); font-size:12px; }
+  select, button, input { font:inherit; }
+  select { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; }
+  .controls { margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--dim); }
+  .controls label { display:flex; gap:6px; align-items:center; }
+  main { flex:1; display:flex; min-height:0; }
+  #left { width:46%; min-width:380px; border-right:1px solid var(--border); display:flex; flex-direction:column; min-height:0; }
+  #right { flex:1; display:flex; flex-direction:column; min-height:0; }
+  .pane-head { padding:10px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; font-size:13px; }
+  .pane-head .spacer { margin-left:auto; }
+  .scroll { overflow:auto; flex:1; min-height:0; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th, td { text-align:left; padding:7px 16px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--dim); font-weight:500; position:sticky; top:0; background:var(--panel); }
+  td.id { color:var(--dim); font-family:var(--mono); white-space:nowrap; }
+  td.summary { color:var(--dim); }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .pill.done{background:rgba(63,185,80,.16);color:var(--ok);} .pill.missing{background:rgba(210,153,34,.16);color:var(--warn);}
+  .pill.blocked{background:rgba(248,81,73,.16);color:var(--bad);} .pill.covered{background:rgba(88,166,255,.16);color:var(--cov);}
+  .pill.stale{background:rgba(210,153,34,.16);color:var(--warn);}
+  .cmds { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .next { width:100%; font-size:12px; color:var(--dim); margin-bottom:2px; }
+  .next code { color:var(--accent); }
+  button.cmd { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 11px; cursor:pointer; font-size:12.5px; font-family:var(--mono); }
+  button.cmd:hover { border-color:var(--accent); }
+  button.cmd.primary { background:var(--accent2); border-color:var(--accent2); color:#fff; }
+  button.cmd:disabled { opacity:.5; cursor:not-allowed; }
+  button.row-run { padding:1px 9px; font-size:12px; }
+  #log { font-family:var(--mono); font-size:12px; line-height:1.5; padding:10px 14px; white-space:pre-wrap; word-break:break-word; }
+  .ln { display:block; }
+  .ln.assistant { color:var(--text); }
+  .ln.tool { color:var(--cov); }
+  .ln.result { color:var(--ok); border-top:1px dashed var(--border); margin-top:6px; padding-top:6px; }
+  .ln.stderr { color:var(--bad); }
+  .ln.info { color:var(--dim); }
+  .ln.meta { color:var(--dim); font-style:italic; }
+  .empty { color:var(--dim); padding:24px 16px; font-size:13px; }
+  .running { color:var(--warn); }
+  .badge { font-family:var(--mono); font-size:11px; padding:1px 7px; border:1px solid var(--border); border-radius:6px; color:var(--dim); }
+</style>
+</head>
+<body>
+<header>
+  <h1>⛓ Pipeline Runner</h1>
+  <span class="sub">runs <code>claude -p</code> headless · results stream below (separate session, not your VS Code chat)</span>
+  <div class="controls">
+    <label>Integration
+      <select id="folderSel"><option value="">(loading…)</option></select>
+    </label>
+    <label>Permission
+      <select id="permSel" title="Headless permission mode. /review, /plan are read-ish; /implement-azure & /test-azure run Bash and usually need bypassPermissions to not stall.">
+        <option value="acceptEdits" selected>acceptEdits</option>
+        <option value="default">default</option>
+        <option value="auto">auto</option>
+        <option value="bypassPermissions">bypassPermissions</option>
+      </select>
+    </label>
+    <label title="Show the exact claude command without running it"><input type="checkbox" id="dryRun"> dry-run</label>
+    <button class="cmd" id="refreshBtn">↻ refresh</button>
+  </div>
+</header>
+
+<main>
+  <section id="left">
+    <div class="pane-head">Migration status <span class="spacer"></span><span class="badge" id="genAt"></span></div>
+    <div class="cmds" id="cmds"><div class="next">Pick an integration to load its stages and commands.</div></div>
+    <div class="scroll"><table id="stages"><thead><tr><th>#</th><th>Stage</th><th>Status</th><th>Summary</th><th></th></tr></thead><tbody></tbody></table></div>
+  </section>
+  <section id="right">
+    <div class="pane-head">Run log <span class="spacer"></span><span class="badge" id="runState">idle</span><button class="cmd" id="clearBtn" style="margin-left:8px;">clear</button></div>
+    <div class="scroll"><div id="log"><div class="empty">No run yet. Click a command on the left.</div></div></div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const folderSel = $('#folderSel'), permSel = $('#permSel'), dryRun = $('#dryRun');
+const logEl = $('#log'), runState = $('#runState'), cmdsEl = $('#cmds'), stagesBody = $('#stages tbody'), genAt = $('#genAt');
+let running = false;
+let currentAbort = null;
+
+// Full folder-arg-safe command surface for the top bar (all are in the server allow-list).
+// Ordered roughly by pipeline progression. Commands with non-folder argument shapes
+// (/specify, /platform, /run-pipeline, /ir-diff) are intentionally omitted here.
+const QUICK = ['/status','/next','/clarify','/model','/contracts','/map','/architect','/review',
+               '/test-mappings','/test-flows','/plan','/tasks','/implement-azure','/test-azure',
+               '/deploy-azure','/visualize','/drift-check'];
+// Per-stage "run" button → the command that advances/re-runs that stage (folder-arg-safe).
+// Mirrors the producer mapping in scripts/refresh-status.ps1. Stages 0/1/7 are omitted
+// (inventory / /specify / /platform don't take a plain folder arg).
+const STAGE_CMD = {
+  '1a':'/clarify','2':'/model','3':'/contracts','3a':'/contracts','4':'/map','5':'/architect',
+  '5a':'/review','5b':'/review','5c':'/review','5d':'/review','5e':'/review',
+  '6':'/test-mappings','6a':'/test-flows','8':'/plan','9':'/tasks',
+  '10':'/implement-azure','11':'/test-azure','12':'/deploy-azure',
+};
+
+function logLine(cls, text) {
+  if (logEl.querySelector('.empty')) logEl.innerHTML = '';
+  const div = document.createElement('span');
+  div.className = 'ln ' + cls;
+  div.textContent = text;
+  logEl.appendChild(div);
+  logEl.parentElement.scrollTop = logEl.parentElement.scrollHeight;
+}
+
+async function loadIntegrations(selectFolder) {
+  const r = await fetch('/api/integrations'); const d = await r.json();
+  const cur = selectFolder || folderSel.value;
+  folderSel.innerHTML = '';
+  if (!d.integrations.length) { folderSel.innerHTML = '<option value="">(none found)</option>'; return; }
+  for (const it of d.integrations) {
+    const o = document.createElement('option');
+    o.value = it.folder; o.textContent = it.folder;
+    folderSel.appendChild(o);
+  }
+  folderSel.value = cur && d.integrations.some(i => i.folder === cur) ? cur : d.integrations[0].folder;
+  await loadStatus();
+}
+
+async function loadStatus() {
+  const folder = folderSel.value;
+  stagesBody.innerHTML = ''; genAt.textContent = '';
+  if (!folder) { cmdsEl.innerHTML = '<div class="next">No integration selected.</div>'; return; }
+  let st;
+  try { const r = await fetch('/api/status?folder=' + encodeURIComponent(folder)); st = await r.json(); }
+  catch { cmdsEl.innerHTML = '<div class="next">Failed to read status.json.</div>'; return; }
+  if (st.error) { cmdsEl.innerHTML = '<div class="next">' + st.error + '</div>'; return; }
+  genAt.textContent = st.generatedAt ? ('refreshed ' + st.generatedAt) : '';
+  for (const s of (st.stages || [])) {
+    const tr = document.createElement('tr');
+    const rowCmd = STAGE_CMD[s.id];
+    const runCell = rowCmd ? `<button class="cmd row-run" data-cmd="${rowCmd}" title="run ${rowCmd} ${folder}">▶</button>` : '';
+    tr.innerHTML = `<td class="id">${s.id}</td><td>${s.name}</td>`
+      + `<td><span class="pill ${s.status}">${s.status}</span></td>`
+      + `<td class="summary">${escapeHtml(s.summary || '')}</td>`
+      + `<td>${runCell}</td>`;
+    stagesBody.appendChild(tr);
+  }
+  stagesBody.querySelectorAll('button.row-run').forEach(b => b.addEventListener('click', () => runCommand(b.dataset.cmd)));
+  // Command buttons
+  const nextCmd = st.next && st.next.command ? st.next.command : '';
+  const nextToken = nextCmd.split(/\s+/)[0] || '';
+  let html = '';
+  if (nextCmd) html += `<div class="next">Recommended next: <code>${escapeHtml(nextCmd)}</code></div>`;
+  if (nextToken) html += btn(nextToken, true);
+  for (const c of QUICK) if (c !== nextToken) html += btn(c, false);
+  cmdsEl.innerHTML = html || '<div class="next">No commands.</div>';
+  cmdsEl.querySelectorAll('button.cmd').forEach(b => b.addEventListener('click', () => runCommand(b.dataset.cmd)));
+}
+
+function btn(cmd, primary) {
+  return `<button class="cmd ${primary ? 'primary' : ''}" data-cmd="${cmd}" ${running ? 'disabled' : ''}>${cmd}</button>`;
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function setRunning(on) {
+  running = on;
+  runState.textContent = on ? 'running…' : 'idle';
+  runState.className = 'badge' + (on ? ' running' : '');
+  document.querySelectorAll('button.cmd').forEach(b => b.disabled = on);
+  folderSel.disabled = on; permSel.disabled = on;
+}
+
+// Pretty-print one stream-json event from claude -p
+function renderEvent(ev) {
+  const p = ev.parsed;
+  if (ev.stream === 'stderr') { logLine('stderr', ev.line); return; }
+  if (!p) { logLine('info', ev.line); return; }
+  if (p.type === 'system' && p.subtype === 'init') {
+    logLine('meta', `▸ session ${p.session_id || ''} · model ${p.model || ''} · cwd ${p.cwd || ''}`); return;
+  }
+  if (p.type === 'assistant' && p.message && Array.isArray(p.message.content)) {
+    for (const c of p.message.content) {
+      if (c.type === 'text' && c.text) logLine('assistant', c.text);
+      else if (c.type === 'tool_use') logLine('tool', `  ⚙ ${c.name} ${c.input ? JSON.stringify(c.input).slice(0,160) : ''}`);
+    }
+    return;
+  }
+  if (p.type === 'result') {
+    if (p.result) logLine('result', p.result);
+    const bits = [];
+    if (p.duration_ms != null) bits.push(`${(p.duration_ms/1000).toFixed(1)}s`);
+    if (p.num_turns != null) bits.push(`${p.num_turns} turns`);
+    if (p.total_cost_usd != null) bits.push(`$${p.total_cost_usd.toFixed(4)}`);
+    if (p.is_error) bits.push('ERROR');
+    if (bits.length) logLine('meta', `▸ ${bits.join(' · ')}`);
+    return;
+  }
+  if (p.type === 'user') return; // tool results echoed back — skip noise
+  // fallback
+  logLine('info', ev.line.slice(0, 400));
+}
+
+async function runCommand(command) {
+  if (running) return;
+  const folder = folderSel.value;
+  const permissionMode = permSel.value;
+  const isDry = dryRun.checked;
+  logLine('meta', `\n$ ${command} ${folder}   [${isDry ? 'dry-run' : permissionMode}]`);
+  setRunning(true);
+  currentAbort = new AbortController();
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command, folder, permissionMode, dryRun: isDry }),
+      signal: currentAbort.signal,
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); logLine('stderr', 'error: ' + (e.error || res.status)); setRunning(false); return; }
+    // Parse SSE from the fetch body stream
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let sep;
+      while ((sep = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, sep); buf = buf.slice(sep + 2);
+        const evMatch = /^event: (.+)$/m.exec(block);
+        const dataMatch = /^data: (.+)$/m.exec(block);
+        if (!dataMatch) continue;
+        const event = evMatch ? evMatch[1] : 'message';
+        let data; try { data = JSON.parse(dataMatch[1]); } catch { continue; }
+        if (event === 'start') {
+          logLine('meta', `▸ ${data.display}`);
+        } else if (event === 'log') {
+          renderEvent(data);
+        } else if (event === 'done') {
+          logLine('meta', data.dryRun ? '▸ dry run complete.' : `▸ finished (exit ${data.code})`);
+        }
+      }
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') logLine('stderr', 'stream error: ' + err.message);
+  } finally {
+    setRunning(false);
+    if (!dryRun.checked) { await loadIntegrations(folderSel.value); } // re-poll status after a real run
+  }
+}
+
+folderSel.addEventListener('change', loadStatus);
+$('#refreshBtn').addEventListener('click', () => loadIntegrations(folderSel.value));
+$('#clearBtn').addEventListener('click', () => { logEl.innerHTML = '<div class="empty">cleared.</div>'; });
+loadIntegrations();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "upstream": ".github/skills/logic-apps/references/reference-catalog/connections/StorageServiceProvider/connections.json",
+  "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+  "originalSource": "Azure Logic Apps runtime reference corpus",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Bundles both 'AzureBlob' and 'azurequeues' service-provider connections — the two are independent but share the same Storage account. Connection-string variant; for managed identity, switch parameterSetName to an AAD variant. Display name normalised to our '###display-name###' placeholder convention. Note the connector keys ('AzureBlob' PascalCase, 'azurequeues' lowercase) match the upstream service-provider IDs verbatim — do not rename."
+}

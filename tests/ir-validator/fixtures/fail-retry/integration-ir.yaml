@@ -1,0 +1,56 @@
+apiVersion: spec2integration/v1
+kind: Integration
+metadata:
+  name: fail-retry
+  domain: testing
+  owner: ir-validator-fixtures
+  description: Exponential retry policy with a base interval of PT2M. Schema accepts it; the Phase 9 semantic check should flag PT2M+ exponential intervals as almost certainly a misread of the policy.
+  scenario: greenfield
+
+channels:
+  - name: poInbound
+    kind: http
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: poOutbound
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+messages:
+  - name: PurchaseOrder
+    schemaRef: contracts/schemas/PurchaseOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    idempotencyKey: body.orderId
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+flows:
+  - name: PurchaseOrderFlow
+    stateful: true
+    trigger: poInbound
+    steps:
+      - id: receive
+        type: receive
+        channel: poInbound
+        next: send
+      - id: send
+        type: send
+        channel: poOutbound
+
+errorHandling:
+  retry:
+    policy: exponential
+    count: 5
+    interval: PT2M    # exponential starting at 2 minutes compounds fast — almost always a misread

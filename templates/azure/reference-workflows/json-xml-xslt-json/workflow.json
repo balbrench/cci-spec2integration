@@ -1,0 +1,80 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "actions": {
+      "Compose_Request_XML": {
+        "type": "xmlCompose",
+        "runAfter": {},
+        "inputs": {
+          "content": "###request-json###",
+          "schema": {
+            "name": "###request-schema###",
+            "source": "LogicApp"
+          }
+        }
+      },
+      "Transform_XML": {
+        "type": "Xslt",
+        "runAfter": {
+          "Compose_Request_XML": [
+            "Succeeded"
+          ]
+        },
+        "inputs": {
+          "content": "@body('Compose_Request_XML')?['xml']",
+          "map": {
+            "name": "###map###",
+            "source": "LogicApp"
+          }
+        }
+      },
+      "Parse_Response_XML": {
+        "type": "xmlParse",
+        "runAfter": {
+          "Transform_XML": [
+            "Succeeded"
+          ]
+        },
+        "inputs": {
+          "content": "@body('Transform_XML')",
+          "schema": {
+            "name": "###response-schema###",
+            "source": "LogicApp"
+          },
+          "jsonWriterSettings": {
+            "ignoreAttributes": false
+          }
+        }
+      },
+      "Response": {
+        "type": "Response",
+        "kind": "Http",
+        "runAfter": {
+          "Parse_Response_XML": [
+            "Succeeded"
+          ]
+        },
+        "inputs": {
+          "statusCode": 200,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "@body('Parse_Response_XML')?['json']"
+        }
+      }
+    },
+    "outputs": {},
+    "parameters": {},
+    "triggers": {
+      "manual": {
+        "inputs": {
+          "schema": {}
+        },
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

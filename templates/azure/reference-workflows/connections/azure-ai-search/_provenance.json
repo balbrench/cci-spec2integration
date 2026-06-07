@@ -1,0 +1,8 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/AzureAISearch/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "serviceProviderId": "/serviceProviders/azureaisearch",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Azure AI Search built-in connector. Two variants: AdminKey auth (legacy / dev) and ActiveDirectoryOAuth with client certificate (production). Endpoint URL from azureAISearch_endpoint app setting."
+}

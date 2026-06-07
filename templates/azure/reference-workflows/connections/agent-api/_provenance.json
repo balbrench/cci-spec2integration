@@ -1,0 +1,7 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/connections/AgentAPI/connections.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Minimal Agent workflow connection scaffold: a single managed-API connection (example: msnweather as a tool) plus one model-type agentConnection. Prefer this over the full agent/ scaffold for greenfield agent flows with one model and one tool."
+}

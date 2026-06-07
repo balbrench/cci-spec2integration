@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec2integration.dev/schemas/domain-ir.schema.json",
+  "title": "Domain IR",
+  "description": "A business domain groups one or more Integration artifacts, declares canonical domain events, and sets domain-wide policy defaults that individual integrations inherit.",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "integrations"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "spec2integration/v1" },
+    "kind": { "const": "Domain" },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "owner"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Kebab-case domain identifier. Must match metadata.domain in every registered Integration."
+        },
+        "description": { "type": "string" },
+        "owner": {
+          "type": "string",
+          "description": "Team or individual responsible for this domain."
+        },
+        "classification": {
+          "description": "Default data classification applied to all integrations in this domain. Individual integrations may declare a stricter value; never a looser one.",
+          "enum": ["public", "internal", "confidential", "restricted"],
+          "default": "internal"
+        }
+      }
+    },
+    "integrations": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of Integration artifacts that belong to this domain. Order implies nothing about deployment sequence.",
+      "items": {
+        "type": "object",
+        "required": ["path"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path to the integration-ir.yaml, relative to the domain.yaml file."
+          },
+          "layer": {
+            "description": "Architectural layer this integration belongs to. Individual flows may override via flows[].layer when a single deployed unit spans layers.",
+            "enum": ["experience", "process", "system"],
+            "default": "process"
+          },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "description": "Canonical domain events — messages that cross integration boundaries within this domain. The Domain owns these schemas; integrations reference them as dependencies.",
+      "items": {
+        "type": "object",
+        "required": ["name", "schemaRef"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Za-z0-9]*$",
+            "description": "PascalCase event name (e.g. OrderCreated, PaymentCaptured)."
+          },
+          "schemaRef": {
+            "type": "string",
+            "description": "Path to the canonical schema file, relative to the domain.yaml. All integrations that produce or consume this event must reference this schema."
+          },
+          "description": { "type": "string" },
+          "classification": {
+            "enum": ["public", "internal", "confidential", "restricted"]
+          },
+          "pii": {
+            "type": "boolean",
+            "default": false
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:[-+][0-9A-Za-z.-]+)?$",
+            "description": "Semver of this event contract. Bump on breaking changes."
+          },
+          "compatibility": {
+            "description": "Schema evolution policy: backward = new readers can read old data; forward = old readers can read new data; full = both; none = breaking changes allowed.",
+            "enum": ["backward", "forward", "full", "none"],
+            "default": "backward"
+          },
+          "producers": {
+            "type": "array",
+            "description": "Integration names (metadata.name) that emit this event. Informational; ir-validator cross-checks.",
+            "items": { "type": "string" }
+          },
+          "consumers": {
+            "type": "array",
+            "description": "Integration names (metadata.name) that consume this event. Informational; ir-validator cross-checks.",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "description": "Domain-wide defaults inherited by all integrations. Integration-level declarations override these; they never loosen them.",
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "description": "Default authentication scheme for channels in this domain.",
+          "oneOf": [
+            { "enum": ["managedIdentity", "apiKey", "oauth2", "none"] },
+            {
+              "type": "object",
+              "required": ["type", "issuer", "audience", "scopes"],
+              "additionalProperties": false,
+              "properties": {
+                "type": { "const": "oauth2" },
+                "issuer": { "type": "string", "format": "uri" },
+                "audience": { "type": "string" },
+                "scopes": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          ]
+        },
+        "errorHandling": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "retry": {
+              "type": "object",
+              "required": ["policy", "count", "interval"],
+              "additionalProperties": false,
+              "properties": {
+                "policy": { "enum": ["fixed", "exponential"] },
+                "count": { "type": "integer", "minimum": 0, "maximum": 10 },
+                "interval": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" }
+              }
+            },
+            "dlq": {
+              "type": "object",
+              "required": ["channel"],
+              "additionalProperties": false,
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "description": "Logical name of the domain-level DLQ channel. Each integration is expected to declare a matching channel."
+                }
+              }
+            },
+            "circuitBreaker": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "failureRatio": { "type": "number", "minimum": 0, "maximum": 1 },
+                "windowSeconds": { "type": "integer", "minimum": 1 }
+              }
+            }
+          }
+        },
+        "dataClassification": {
+          "description": "Minimum data classification enforced across all channels and messages in this domain. Integrations may declare a stricter value.",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "pii": {
+          "description": "When true, all integrations in this domain are assumed to carry PII unless a message explicitly declares pii: false. Drives pii-flow-checker behaviour.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "nonFunctionals": {
+      "type": "object",
+      "description": "Domain-level NFR defaults. Integrations may declare stricter values.",
+      "additionalProperties": false,
+      "properties": {
+        "rps": { "type": "number", "minimum": 0 },
+        "p95LatencyMs": { "type": "integer", "minimum": 0 },
+        "slo": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "availability": { "type": "number", "minimum": 0, "maximum": 100 },
+            "errorBudgetDays": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

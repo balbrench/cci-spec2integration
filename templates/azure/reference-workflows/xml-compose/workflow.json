@@ -1,0 +1,36 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "actions": {
+      "XmlCompose": {
+        "type": "xmlCompose",
+        "runAfter": {},
+        "inputs": {
+          "content": "###json-shape-matching-schema###",
+          "schema": {
+            "name": "###schema###",
+            "source": "LogicApp"
+          }
+        }
+      },
+      "Response": {
+        "inputs": {
+          "body": { "value": "@body('XmlCompose')?['xml']" },
+          "statusCode": 200
+        },
+        "runAfter": { "XmlCompose": [ "Succeeded" ] },
+        "type": "Response"
+      }
+    },
+    "outputs": {},
+    "parameters": {},
+    "triggers": {
+      "manual": {
+        "inputs": { "schema": {} },
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  }
+}

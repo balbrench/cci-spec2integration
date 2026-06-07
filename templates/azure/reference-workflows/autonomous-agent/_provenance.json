@@ -1,0 +1,7 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/AutonomousAgentWorkflow/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Multi-tool autonomous-agent workflow: higher iteration limit (count: 100 vs 10 in agent/), Compose-only tools that demonstrate agentparameters() arithmetic and conditional logic without external dependencies. Use as the starting point for greenfield reasoning agents whose tools are pure data transforms rather than connector calls. Pair with connections/agent-api/."
+}

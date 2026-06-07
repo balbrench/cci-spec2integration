@@ -1,0 +1,19 @@
+{
+  "description": "WrongDirectionFlow triggers on an outbound channel (Sev-1). HttpConsumerOneFlow and HttpConsumerTwoFlow share the same HTTP inbound channel as their trigger (Sev-2).",
+  "phase9Findings": [
+    {
+      "ruleId": "TRIGGER_CHANNEL_DIRECTION_INVALID",
+      "severity": 1,
+      "location": "flows[WrongDirectionFlow]",
+      "expectedMessageFragment": "trigger channel 'outboundQueue' has direction 'outbound', must be 'inbound'"
+    },
+    {
+      "ruleId": "TRIGGER_HTTP_CHANNEL_SHARED",
+      "severity": 2,
+      "location": "channels[sharedHttp]",
+      "expectedMessageFragment": "channel 'sharedHttp'"
+    }
+  ],
+  "verdict": "BLOCKED",
+  "notes": "TRIGGER_CHANNEL_DIRECTION_INVALID is Sev-1 so verdict is BLOCKED. The HTTP-shared finding fires once per shared HTTP channel (not once per flow)."
+}

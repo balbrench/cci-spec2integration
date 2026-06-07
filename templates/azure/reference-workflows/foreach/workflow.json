@@ -1,0 +1,59 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "For_each": {
+        "actions": {
+          "Compose_Item": {
+            "inputs": "@item()",
+            "runAfter": {},
+            "type": "Compose"
+          }
+        },
+        "foreach": "@variables('arr')",
+        "runAfter": {
+          "Initialize_variable": [
+            "Succeeded"
+          ]
+        },
+        "type": "Foreach"
+      },
+      "Initialize_variable": {
+        "inputs": {
+          "variables": [
+            {
+              "name": "arr",
+              "type": "array",
+              "value": []
+            }
+          ]
+        },
+        "runAfter": {},
+        "type": "InitializeVariable"
+      },
+      "Response": {
+        "inputs": {
+          "statusCode": 200,
+          "body": "@result('For_each')"
+        },
+        "runAfter": {
+          "For_each": [
+            "Succeeded",
+            "FAILED"
+          ]
+        },
+        "type": "Response"
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "manual": {
+        "inputs": {},
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

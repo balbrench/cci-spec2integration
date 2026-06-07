@@ -1,0 +1,33 @@
+{
+  "managedApiConnections": {},
+  "serviceProviderConnections": {
+    "AzureAISearchAdminKeyAuth": {
+      "displayName": "###display-name###",
+      "parameterValues": {
+        "searchServiceEndpoint": "@appsetting('azureAISearch_endpoint')",
+        "searchServiceAdminKey": "@appsetting('azureAISearch_adminKey')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/azureaisearch"
+      }
+    },
+    "AzureAISearchActiveDirectoryOAuth": {
+      "displayName": "###display-name###",
+      "parameterSetName": "ActiveDirectoryOAuth",
+      "parameterValues": {
+        "searchServiceEndpoint": "@appsetting('azureAISearch_endpoint')",
+        "authProvider": {
+          "ClientId": "@appsetting('azureAISearch_clientId')",
+          "pfx": "@appsetting('azureAISearch_clientCertPfx')",
+          "CredentialType": "Certificate",
+          "Tenant": "@appsetting('azureAISearch_tenantId')",
+          "Type": "ActiveDirectoryOAuth",
+          "Password": ""
+        }
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/azureaisearch"
+      }
+    }
+  }
+}

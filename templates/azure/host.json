@@ -1,0 +1,26 @@
+{
+  "version": "2.0",
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle.Workflows",
+    "version": "[1.*, 2.0.0)"
+  },
+  "extensions": {
+    "workflow": {
+      "settings": {
+        "Runtime.Trigger.MaximumRunDurationInSeconds": "3600"
+      }
+    }
+  },
+  "logging": {
+    "logLevel": {
+      "default": "Information",
+      "Host.Triggers.Workflows": "Information"
+    },
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    }
+  }
+}

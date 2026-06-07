@@ -1,0 +1,48 @@
+{
+  "managedApiConnections": {},
+  "serviceProviderConnections": {
+    "OpenAi": {
+      "displayName": "###display-name###",
+      "parameterSetName": "KeyAndEndpointConnection",
+      "parameterValues": {
+        "openAIEndpoint": "@appsetting('openAI_openAIEndpoint')",
+        "openAIKey": "@appsetting('openAI_openAIKey')"
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/OpenAI"
+      }
+    },
+    "OpenAiManagedIdentity": {
+      "displayName": "###display-name###",
+      "parameterSetName": "ManagedServiceIdentity",
+      "parameterValues": {
+        "openAIEndpoint": "@appsetting('openAI_openAIEndpoint')",
+        "managedIdentityType": "SystemAssigned",
+        "authProvider": {
+          "Type": "ManagedServiceIdentity"
+        }
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/OpenAI"
+      }
+    },
+    "OpenAiActiveDirectoryOAuth": {
+      "displayName": "###display-name###",
+      "parameterSetName": "ActiveDirectoryOAuth",
+      "parameterValues": {
+        "openAIEndpoint": "@appsetting('openAI_openAIEndpoint')",
+        "authProvider": {
+          "ClientId": "@appsetting('openAI_clientId')",
+          "CredentialType": "Certificate",
+          "pfx": "@appsetting('openAI_clientCertPfx')",
+          "Tenant": "@appsetting('openAI_tenantId')",
+          "Type": "ActiveDirectoryOAuth",
+          "Password": ""
+        }
+      },
+      "serviceProvider": {
+        "id": "/serviceProviders/OpenAI"
+      }
+    }
+  }
+}

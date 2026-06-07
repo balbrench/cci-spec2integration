@@ -1,0 +1,33 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "actions": {
+      "Integration_Account_Artifact_Lookup": {
+        "type": "IntegrationAccountArtifactLookup",
+        "runAfter": {},
+        "inputs": {
+          "artifactName": "###artifactName###",
+          "artifactType": "###artifactType###"
+        }
+      },
+      "Response": {
+        "inputs": {
+          "body": { "value": "@body('Integration_Account_Artifact_Lookup')" },
+          "statusCode": 200
+        },
+        "runAfter": { "Integration_Account_Artifact_Lookup": [ "Succeeded", "Failed" ] },
+        "type": "Response"
+      }
+    },
+    "outputs": {},
+    "parameters": {},
+    "triggers": {
+      "manual": {
+        "inputs": { "schema": {} },
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  }
+}

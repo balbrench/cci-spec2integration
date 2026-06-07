@@ -1,0 +1,95 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "actions": {
+      "Pickup_shipment": {
+        "type": "ParseJson",
+        "inputs": {
+          "content": "@triggerBody()",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "Priority": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "runAfter": {}
+      },
+      "Switch": {
+        "type": "Switch",
+        "expression": "@body('Pickup_shipment')?['Priority']",
+        "default": {
+          "actions": {
+            "Default_Wait": {
+              "type": "Wait",
+              "inputs": {
+                "interval": {
+                  "count": 5,
+                  "unit": "Minute"
+                }
+              }
+            }
+          }
+        },
+        "cases": {
+          "Priority_1": {
+            "actions": {
+              "Fast_Path": {
+                "type": "Wait",
+                "inputs": {
+                  "interval": {
+                    "count": 15,
+                    "unit": "Second"
+                  }
+                }
+              }
+            },
+            "case": 1
+          },
+          "Priority_2": {
+            "actions": {
+              "Slow_Path": {
+                "type": "Wait",
+                "inputs": {
+                  "interval": {
+                    "count": 1,
+                    "unit": "Minute"
+                  }
+                }
+              }
+            },
+            "case": 2
+          }
+        },
+        "runAfter": {
+          "Pickup_shipment": [
+            "Succeeded"
+          ]
+        }
+      },
+      "Response": {
+        "type": "Response",
+        "kind": "Http",
+        "inputs": {
+          "statusCode": 200
+        },
+        "runAfter": {
+          "Switch": [
+            "Succeeded"
+          ]
+        }
+      }
+    },
+    "contentVersion": "1.0.0.0",
+    "outputs": {},
+    "triggers": {
+      "When_a_HTTP_request_is_received": {
+        "type": "Request",
+        "kind": "Http"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

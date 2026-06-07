@@ -1,0 +1,9 @@
+{
+  "upstream": "resources/referenceWorkflowsAndConnections/workflows/ServiceProviders/FileSystem/createFile-empty/workflow.json",
+  "upstreamRepo": "Azure/logicapps-migration-agent",
+  "operationId": "createFile",
+  "serviceProviderId": "/serviceProviders/FileSystem",
+  "copiedAt": "2026-05-21",
+  "license": "MIT",
+  "notes": "Variant of createFile that omits the body parameter — produces an empty file at filePath. Use when the IR step intent is 'create empty marker / touch file'."
+}

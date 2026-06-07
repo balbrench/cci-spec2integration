@@ -1,0 +1,5 @@
+{
+  "description": "Baseline IR that should produce zero Phase 9 semantic findings. Existing Phase 1-8 checks should also pass; verdict: PASS.",
+  "phase9Findings": [],
+  "verdict": "PASS"
+}

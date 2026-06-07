@@ -1,0 +1,8 @@
+{
+  "upstream": ".github/skills/logic-apps/references/reference-catalog/connections/CosmosDBServiceProvider/connections.json",
+  "upstreamRepo": "AVN-Agents/agentic-integration-framework",
+  "originalSource": "Azure Logic Apps runtime reference corpus",
+  "copiedAt": "2026-05-16",
+  "license": "MIT",
+  "notes": "Service-provider variant of the Cosmos DB connector. Connection-string parameterSet; switch to AAD/managed-identity variant by changing parameterSetName and parameterValues. Upstream file also contained an unrelated 'outlook' managedApiConnection — stripped here. parameterSetName added to match our convention; connector key 'AzureCosmosDB' PascalCase matches the service-provider id verbatim — do not rename."
+}

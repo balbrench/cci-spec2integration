@@ -1,0 +1,37 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "actions": {
+      "FunctionCode": {
+        "type": "InvokeFunction",
+        "runAfter": {},
+        "inputs": {
+          "functionName": "###FunctionName###",
+          "parameters": {
+            "parameter1": "###string-value###",
+            "parameter2": 1
+          }
+        }
+      },
+      "Response": {
+        "inputs": {
+          "body": { "value": "@body('FunctionCode')" },
+          "statusCode": 200
+        },
+        "runAfter": { "FunctionCode": [ "Succeeded" ] },
+        "type": "Response"
+      }
+    },
+    "outputs": {},
+    "parameters": {},
+    "triggers": {
+      "manual": {
+        "inputs": { "schema": {} },
+        "kind": "Http",
+        "type": "Request"
+      }
+    }
+  },
+  "kind": "Stateful"
+}

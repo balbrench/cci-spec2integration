@@ -1,0 +1,98 @@
+apiVersion: spec2integration/v1
+kind: Integration
+metadata:
+  name: clean-baseline
+  domain: testing
+  owner: ir-validator-fixtures
+  description: Baseline IR that exercises a normal receive -> transform -> send DAG. No semantic findings expected.
+  scenario: greenfield
+
+channels:
+  - name: poInbound
+    kind: http
+    direction: inbound
+    auth: managedIdentity
+    schemaRef: PurchaseOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: poOutbound
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: CanonicalOrder
+    delivery: at-least-once
+    classification: internal
+
+  - name: dlq
+    kind: queue
+    direction: outbound
+    auth: managedIdentity
+    schemaRef: CanonicalOrder
+    delivery: at-least-once
+    classification: internal
+
+messages:
+  - name: PurchaseOrder
+    schemaRef: contracts/schemas/PurchaseOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    idempotencyKey: body.orderId
+    correlationId: X-Correlation-Id
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+  - name: CanonicalOrder
+    schemaRef: contracts/schemas/CanonicalOrder.json
+    contentType: application/json
+    format: json
+    encoding: utf-8
+    schemaLanguage: json-schema
+    correlationId: X-Correlation-Id
+    version: 1.0.0
+    compatibility: backward
+    classification: internal
+
+mappings:
+  - name: PurchaseOrderToCanonical
+    description: Maps inbound PurchaseOrder to internal CanonicalOrder.
+    source: { messageRef: PurchaseOrder }
+    target: { messageRef: CanonicalOrder }
+    engine: jsonata
+    rules:
+      - target: orderId
+        source: orderId
+    tests:
+      - name: happy-path
+        input:  { inline: { orderId: "PO-1" } }
+        expect: { inline: { orderId: "PO-1" } }
+
+flows:
+  - name: PurchaseOrderFlow
+    stateful: true
+    trigger: poInbound
+    steps:
+      - id: receive
+        type: receive
+        channel: poInbound
+        next: transform
+      - id: transform
+        type: transform
+        mappingRef: PurchaseOrderToCanonical
+        next: send
+      - id: send
+        type: send
+        channel: poOutbound
+
+errorHandling:
+  retry:
+    policy: exponential
+    count: 4
+    interval: PT5S
+  dlq:
+    channel: dlq
+
+dependencies: []

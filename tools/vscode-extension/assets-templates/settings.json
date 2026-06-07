@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx -y ajv-cli validate *)",
+      "Bash(npx -y @stoplight/spectral-cli lint *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet run *)",
+      "Bash(git mv *)",
+      "Bash(git rm *)"
+    ]
+  }
+}
