@@ -5,8 +5,6 @@ Spec2Integration pipeline. It brings the prompt-driven experience of
 `tools/pipeline-runner` into VS Code, scaffolds new pipeline workspaces, and hosts
 the IR visualizer as a bundled webview.
 
-![Spec2Integration pipeline panel — integrations expanded into live pipeline stages](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png)
-
 ## Install
 
 Install from the **Visual Studio Marketplace**:
@@ -76,6 +74,8 @@ group/source steps.
 ![Run Pipeline option checkboxes — unattended, auto-fix, allow Sev-2, auto-accept clarifications, dry-run](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/run-pipeline-options.png)
 
 ## In a pipeline workspace
+
+<img src="https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png" alt="Spec2Integration pipeline tree — integrations expanded into live pipeline stages with status pills" width="360" />
 
 - **Pipeline tree** (activity-bar) — every integration under `specs/**`, grouped
   by domain, each expanded into its pipeline stages with live status pills read
