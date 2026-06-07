@@ -59,14 +59,24 @@ node tools/pipeline-runner/server.mjs   # then open the printed http://127.0.0.1
 
 ### VS Code Extension (in-IDE)
 
-For the same prompt-driven model without leaving the editor, `tools/vscode-extension/`
-is a native VS Code extension: an activity-bar **Pipeline** tree that shows every
+For the same prompt-driven model without leaving the editor, the **Spec2Integration
+Pipeline** extension is on the Visual Studio Marketplace:
+
+[**Install Spec2Integration Pipeline →**](https://marketplace.visualstudio.com/items?itemName=BalbirSingh.spec2integration)
+&nbsp;·&nbsp; or run `code --install-extension BalbirSingh.spec2integration`
+
+<img src="https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/pipeline-tree.png" alt="Spec2Integration pipeline tree — integrations expanded into live pipeline stages with status pills" width="360" />
+
+It's a native VS Code extension: an activity-bar **Pipeline** tree that shows every
 integration's stages live from `status.json`, a **guided wizard** that walks you
 through each command's options, and a one-click hand-off that deep-links the
 assembled `/command …` into your Claude Code chat (clipboard fallback). It also hosts
 the **IR visualizer** (interactive flow graph + live status/findings overlay) as a
-bundled webview. Build and run with `npm install && npm run compile` then press **F5**
-— see `tools/vscode-extension/README.md`.
+bundled webview. It can also **scaffold a fresh greenfield or BizTalk-migration
+workspace** (bundled agents/skills/commands) with no folder open.
+
+To build from source instead: `cd tools/vscode-extension && npm install && npm run compile`,
+then press **F5** — see [`tools/vscode-extension/README.md`](tools/vscode-extension/README.md).
 
 ## Pipeline
 
