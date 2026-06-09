@@ -2,7 +2,7 @@
   "name": "spec2integration",
   "displayName": "Spec2Integration Pipeline",
   "description": "In-IDE project launcher, navigator and guided command composer for the Spec2Integration spec-driven integration pipeline. Scaffolds greenfield or BizTalk-migration workspaces (bundled agents/skills/commands), shows every integration's pipeline stages live from status.json, and hands assembled slash commands to your Claude Code chat.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "BalbirSingh",
   "license": "MIT",
   "repository": {
@@ -79,8 +79,13 @@
       },
       {
         "view": "spec2integration.pipeline",
-        "when": "!spec2integration.noWorkspace && !spec2integration.isBiztalk",
+        "when": "!spec2integration.noWorkspace && !spec2integration.isBiztalk && !spec2integration.pipelineLaunched",
         "contents": "No integrations found yet.\n\nRun the pipeline to create your first integration — the wizard collects options, then sends the assembled slash command to your Claude Code chat.\n[$(run-all) Run Pipeline](command:spec2integration.runFullPipeline)\n[$(zap) Compose a command](command:spec2integration.composeCommand)\n\nAs the pipeline produces `status.json` files under `specs/`, integrations appear here automatically — this panel refreshes the moment the first one lands."
+      },
+      {
+        "view": "spec2integration.pipeline",
+        "when": "!spec2integration.noWorkspace && !spec2integration.isBiztalk && spec2integration.pipelineLaunched",
+        "contents": "$(sync~spin) Pipeline running…\n\nYour brief was sent to Claude Code. Watch the run in the chat — the intake stages (`/draft-prd` → `/specify`) come first.\n\nThe first integration appears here **automatically** the moment `/specify` writes its `status.json`; this panel then switches to the live stage tree.\n[$(refresh) Check now](command:spec2integration.refresh)"
       }
     ],
     "commands": [

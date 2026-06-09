@@ -18,7 +18,7 @@ import { openVisualizer, refreshVisualizer } from './visualizer';
 import { openProgress, refreshProgress } from './progress';
 import { openPath, openPreview } from './artifacts';
 import { registerIrSchema } from './schemaContributor';
-import { readState, readStatus, discoverBiztalkSolutions } from './discovery';
+import { readState, readStatus, discoverBiztalkSolutions, discoverIntegrations } from './discovery';
 import { newProject, offerFirstStepIfPending } from './scaffold';
 import { Mode, updateAssetsFromGitHub, readManifest } from './assets';
 import { checkNotifications } from './notifications';
@@ -148,6 +148,13 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(treeView);
 
+  // Reveal the Spec2Integration panel automatically when a project window opens,
+  // so the pipeline tree is visible without the user hunting for the activity-bar
+  // icon. Gated to real projects (repoRoot resolved) — unrelated workspaces, which
+  // only activate via workspaceContains, are never affected. Runs once per window
+  // session (on activation), so it does not keep stealing focus afterwards.
+  void vscode.commands.executeCommand('spec2integration.pipeline.focus');
+
   // Compose any command from the catalog.
   reg(context, 'spec2integration.composeCommand', async () => {
     const cmd = await pickCommand();
@@ -260,9 +267,24 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
 
+    // Greenfield: a fresh run needs an integration brief; without it the
+    // orchestrator stops mid-session to ask, which defeats an --unattended run.
+    // The brief is collected in a real editor (multi-line) and written to a file,
+    // then passed by path via --input-file — a multi-line brief can't be safely
+    // inlined into the slash command. Required on a fresh run; on a resume (an
+    // integration already exists) the user may cancel out and resume elsewhere.
+    const isFreshRun = (await discoverIntegrations(repoRoot)).length === 0;
+    const briefFile = await collectGreenfieldBrief(repoRoot, isFreshRun);
+    if (briefFile === undefined) return; // user cancelled
+
     const flags = await pickPipelineFlags(mode);
     if (flags === undefined) return;
-    await sendToChat(`/run-pipeline --mode ${mode}${flags}`);
+    await sendToChat(`/run-pipeline --mode ${mode} --input-file ${quoteArg(briefFile)}${flags}`);
+    // Flip the empty panel from "No integrations found yet" to a "pipeline running"
+    // placeholder. The tree itself stays empty until /specify writes the first
+    // status.json (several steps after /draft-prd) — this gives feedback during
+    // that intake gap. refreshAll clears the flag the moment an integration lands.
+    void vscode.commands.executeCommand('setContext', 'spec2integration.pipelineLaunched', true);
   });
 
   // Migrate a single BizTalk catalogue group: scope the unattended pipeline to it.
@@ -366,6 +388,7 @@ export function activate(context: vscode.ExtensionContext): void {
     tree.refresh();
     void updateStatusBar(repoRoot, statusBar);
     void updateHasIntegrationsContext(repoRoot);
+    void clearPipelineLaunchedWhenReady(repoRoot);
     void updateIsBiztalkContext(repoRoot);
     void updateBiztalkSourceContext(context, repoRoot);
     // Re-decorate an open visualizer / progress view when status.json changes.
@@ -495,6 +518,74 @@ function quoteArg(p: string): string {
   return /\s/.test(p) ? `"${p.replace(/"/g, '\\"')}"` : p;
 }
 
+// The commented scaffold seeded into a new brief file. HTML comments so that, if
+// they survive into the brief, the prd-author agent treats them as guidance noise;
+// `/run-pipeline --input-file` also strips them before authoring the PRD.
+const BRIEF_TEMPLATE = `<!--
+  Spec2Integration — integration brief
+
+  Describe the integration in plain language. A rough brief is fine — the pipeline
+  runs /draft-prd to structure this into a PRD, then /specify, and onward.
+
+  Try to cover: purpose · source · destination · trigger · input format ·
+  output format · a few example fields. Delete this comment or leave it — it is
+  ignored. When you are done, click "Run pipeline" in the notification.
+-->
+
+`;
+
+/**
+ * Collect a greenfield integration brief in a real (multi-line) editor and return
+ * the repo-relative POSIX path to the saved brief file, to be passed via
+ * `--input-file`. A multi-line brief can't be safely inlined into the slash
+ * command, so it always travels as a file. Returns undefined if the user cancels
+ * (or leaves it empty on a fresh run, which can't proceed without a brief).
+ */
+async function collectGreenfieldBrief(repoRoot: string, isFreshRun: boolean): Promise<string | undefined> {
+  const intakeDir = path.join(repoRoot, 'specs', '_intake');
+  await fs.mkdir(intakeDir, { recursive: true });
+  const briefPath = path.join(intakeDir, 'brief.md');
+
+  // Seed a fresh file with the guidance scaffold; preserve an existing brief so a
+  // re-run lets the user iterate on what they wrote last time.
+  if (!(await pathExists(briefPath))) {
+    await fs.writeFile(briefPath, BRIEF_TEMPLATE, 'utf-8');
+  }
+
+  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(briefPath));
+  const editor = await vscode.window.showTextDocument(doc, { preview: false });
+  const end = doc.lineAt(doc.lineCount - 1).range.end;
+  editor.selection = new vscode.Selection(end, end);
+  editor.revealRange(new vscode.Range(end, end));
+
+  const choice = await vscode.window.showInformationMessage(
+    'Write the integration brief in the open editor, then click "Run pipeline".',
+    { modal: false },
+    'Run pipeline',
+    'Cancel',
+  );
+  if (choice !== 'Run pipeline') return undefined;
+
+  // Read the live editor buffer (captures unsaved edits), strip the HTML-comment
+  // guidance, and require non-empty content on a fresh run.
+  const body = doc.getText().replace(/<!--[\s\S]*?-->/g, '').trim();
+  if (isFreshRun && body.length === 0) {
+    vscode.window.showWarningMessage('A fresh greenfield run needs a brief — the editor was empty.');
+    return undefined;
+  }
+
+  // Persist the cleaned brief so the file the pipeline reads matches the editor.
+  // Normalize through the document (not fs) to keep the open buffer and disk in
+  // sync — avoids a "file changed on disk" conflict on the still-open editor.
+  const fullRange = new vscode.Range(doc.lineAt(0).range.start, doc.lineAt(doc.lineCount - 1).range.end);
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(doc.uri, fullRange, body + '\n');
+  await vscode.workspace.applyEdit(edit);
+  await doc.save();
+
+  return path.relative(repoRoot, briefPath).split(path.sep).join('/');
+}
+
 /** Multi-select option checkboxes for /run-pipeline. Returns the assembled flag
  *  string (leading space, or empty) — or undefined if the user cancelled. */
 async function pickPipelineFlags(mode: string): Promise<string | undefined> {
@@ -503,6 +594,7 @@ async function pickPipelineFlags(mode: string): Promise<string | undefined> {
     { label: 'Auto-fix', description: '--auto-fix', detail: 'self-healing loop: route findings back to the owning agent and re-run', flag: '--auto-fix' },
     { label: 'Allow Sev-2', description: '--allow-sev2', detail: 'proceed while Sev-2 findings are tracked (Sev-1 always blocks)', flag: '--allow-sev2' },
     { label: 'Auto-accept clarifications', description: '--auto-accept-clarifications', detail: "use the clarifier's recommended answers (no human sign-off)", flag: '--auto-accept-clarifications' },
+    { label: 'Pause for spec review', description: '--pause-after spec', detail: 'stop after spec.md is created so you can review/edit it, then resume', flag: '--pause-after-spec' },
     { label: 'Dry run', description: '--dry-run', detail: 'print the planned command sequence and exit without running', flag: '--dry-run' },
   ];
   const picks = await vscode.window.showQuickPick(flagItems, {
@@ -512,12 +604,15 @@ async function pickPipelineFlags(mode: string): Promise<string | undefined> {
   });
   if (picks === undefined) return undefined;
   const set = new Set(picks.map((p) => p.flag));
-  if (set.has('--unattended')) return set.has('--dry-run') ? ' --unattended --dry-run' : ' --unattended';
+  // An explicit pause checkpoint is honoured even with --unattended (per the
+  // /run-pipeline contract), so it is appended after the unattended shorthand.
+  const pause = set.has('--pause-after-spec') ? ' --pause-after spec' : '';
+  if (set.has('--unattended')) return (set.has('--dry-run') ? ' --unattended --dry-run' : ' --unattended') + pause;
   let flags = '';
   for (const f of ['--auto-accept-clarifications', '--allow-sev2', '--auto-fix', '--dry-run']) {
     if (set.has(f)) flags += ` ${f}`;
   }
-  return flags;
+  return flags + pause;
 }
 
 /**
@@ -659,6 +754,21 @@ async function updateHasIntegrationsContext(repoRoot: string): Promise<void> {
     has = false;
   }
   await vscode.commands.executeCommand('setContext', 'spec2integration.hasSpecs', has);
+}
+
+/** Clear the "pipeline running" placeholder once the first integration (a
+ *  status.json) has landed — at that point the tree populates and takes over the
+ *  empty-panel welcome. No-op while intake is still in progress. */
+async function clearPipelineLaunchedWhenReady(repoRoot: string): Promise<void> {
+  let ready = false;
+  try {
+    ready = (await discoverIntegrations(repoRoot)).length > 0;
+  } catch {
+    ready = false;
+  }
+  if (ready) {
+    await vscode.commands.executeCommand('setContext', 'spec2integration.pipelineLaunched', false);
+  }
 }
 
 async function pathExists(p: string): Promise<boolean> {
