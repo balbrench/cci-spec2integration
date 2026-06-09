@@ -62,14 +62,20 @@ node:
    the BizTalk node, each with a **Migrate ▶** action.
 3. **Run Pipeline** — pick **one group** (or *All groups* for one combined
    integration) and toggle options as checkboxes (unattended, auto-fix, allow
-   Sev-2, auto-accept clarifications, dry-run). The extension sends
+   Sev-2, auto-accept clarifications, **pause for spec review**, dry-run). The
+   extension sends
    `/run-pipeline --mode biztalk --input <source> --group INT-NNN <flags>`; each
    group becomes its own independent integration with its own `status.json`.
 4. **Deploy** — once a group's integration is green, its **Deploy** action
    provisions and deploys it via `azd`.
 
-Greenfield projects get the same **Run Pipeline** option-checkboxes without the
-group/source steps.
+Greenfield projects use the same option-checkboxes without the group/source
+steps, plus one greenfield-only step: **Run Pipeline** first opens a multi-line
+editor (`specs/_intake/brief.md`) to capture your integration brief, then passes
+it to `/run-pipeline --input-file …` so the brief always runs through `/draft-prd`.
+Tick **Pause for spec review** to have the run stop after `spec.md` is created so
+you can review and edit it (directly or via `/specify "<change>"`) before the rest
+is built; resume with `/run-pipeline --folder <folder>`.
 
 ![Run Pipeline option checkboxes — unattended, auto-fix, allow Sev-2, auto-accept clarifications, dry-run](https://raw.githubusercontent.com/balbrench/cci-spec2integration/main/tools/vscode-extension/media/screenshots/run-pipeline-options.png)
 
