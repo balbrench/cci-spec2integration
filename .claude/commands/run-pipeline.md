@@ -1,6 +1,6 @@
 ---
 description: [Guided] End-to-end pipeline orchestrator from intake through /test-<platform>, stopping before /deploy-<platform>. Resumable from status.json.
-argument-hint: --mode <greenfield|biztalk> [--input <path-or-brief>] [--group INT-NNN] [--folder <specs-folder>] [--platform <pack>] [--allow-sev2] [--auto-accept-clarifications] [--auto-fix [N]] [--unattended] [--dry-run]
+argument-hint: --mode <greenfield|biztalk> [--input <path-or-brief>] [--input-file <path>] [--group INT-NNN] [--folder <specs-folder>] [--platform <pack>] [--allow-sev2] [--auto-accept-clarifications] [--auto-fix [N]] [--unattended] [--pause-after <stage>] [--dry-run]
 allowed-tools: Read, Edit, Write, Grep, Glob, Agent
 ---
 
@@ -13,17 +13,19 @@ This prompt is a **meta-runner**. It invokes the existing slash-commands in sequ
 Parse `$ARGUMENTS` as a flag list:
 
 - `--mode <greenfield|biztalk>` — required. Selects the intake branch.
-- `--input <path-or-brief>` — required for fresh runs:
+- `--input <path-or-brief>` — required for fresh runs (unless `--input-file` is given):
   - `greenfield`: a one-line brief (in quotes) OR a path to an existing PRD `.md`.
   - `biztalk`: an absolute path to the BizTalk solution folder.
   - Optional on resume if `--folder` is provided and intake is already done.
+- `--input-file <path>` — optional, `greenfield` mode only. A path to a file containing a multi-line **brief** (not a finished PRD). Use this instead of `--input` when the brief is too long or multi-line to pass safely on one line (the VS Code extension's "Run Pipeline" button writes the brief to `specs/_intake/brief.md` and passes it this way). Read the file, strip any HTML comment blocks (`<!-- … -->` guidance scaffold), and treat the remaining text as the brief — i.e. **always run `/draft-prd` on it** (it is a brief, never a ready PRD, even though it lives in a `.md` file). If both `--input` and `--input-file` are supplied, `--input-file` wins. If the file is missing or empty after stripping comments, treat it as malformed input (an unrecoverable stop, even under `--unattended`).
 - `--group INT-NNN` — optional, `biztalk` mode only. Scopes the migration to a single catalogue group: `/biztalk-reverse-engineer` produces a spec/contracts/IR covering only that group, in a group-named folder. Run once per group to migrate a solution group-by-group (each group becomes its own integration). Omit to migrate the whole solution into one combined integration. Ignored in `greenfield` mode.
 - `--folder <specs-folder>` — optional. If supplied and `<folder>/status.json` exists, resume from the first non-`done` stage instead of restarting intake.
 - `--platform <pack>` — optional, default `azure`. Used only if `.spec2integration/state.json` is missing.
 - `--allow-sev2` — optional. Forwarded to `/review` and `/plan`. Sev-1 still always blocks.
 - `--auto-accept-clarifications` — optional. Treats all `clarifier` recommendations as Resolved and skips the human sign-off pause. **Risky** — only use when the team has pre-agreed all defaults are acceptable.
 - `--auto-fix [N]` — optional. Enables the self-healing loop (see "Auto-fix loop" below). `N` is the max remediation attempts per stop condition (default `3`). Sev-1 findings, Sev-2 findings, contract lint errors, plan-blocked phase gates, BLOCKED-flow stubs, and `/test-<platform>` failures are all dispatched to the authoring agent that owns the artifact and the stage is re-run. The orchestrator only halts if the loop exhausts `N` without reaching `done`.
-- `--unattended` — optional. Shorthand for `--auto-accept-clarifications --allow-sev2 --auto-fix 3`. Designed for CI / overnight runs where no human is at the keyboard. Still stops on (a) missing platform pack, (b) auto-fix budget exhausted, (c) unrecoverable input (e.g. malformed PRD path).
+- `--unattended` — optional. Shorthand for `--auto-accept-clarifications --allow-sev2 --auto-fix 3`. Designed for CI / overnight runs where no human is at the keyboard. Still stops on (a) missing platform pack, (b) auto-fix budget exhausted, (c) unrecoverable input (e.g. malformed PRD path), (d) a `--pause-after` checkpoint.
+- `--pause-after <stage>` — optional. After the named stage **reaches `done` during this run**, STOP for human review instead of continuing — print the artifact to review and the resume command (see "Pause checkpoints" below). Accepted values: `spec`, `clarify`, `model`, `contracts`, `mappings`, `ir`, `review`. The most common is `--pause-after spec`, to review `spec.md` before the data model and everything downstream are built. The pause is a **one-time** checkpoint: resume with `/run-pipeline --folder <folder> --mode <mode>` and the run continues past it (the named stage is already `done`, so it is neither re-run nor re-paused). Honoured **even with `--unattended`** — an explicit checkpoint overrides hands-off, so only combine the two when you intend the run to stop. Ignored (with a one-line note) if the run's resume point is already past the named stage.
 - `--dry-run` — optional. Prints the planned command sequence (with the resolved folder, mode, and resume point) and exits without invoking any sub-prompt.
 
 If `--mode` is missing, stop with: `"--mode <greenfield|biztalk> is required."` and a one-line usage example for each mode.
@@ -37,7 +39,7 @@ If `--unattended` is set, expand it before flag-handling into `--auto-accept-cla
    - If `--folder` was supplied: use it. Read `<folder>/status.json` if present to determine the resume point (see "Resume semantics" below).
    - Else if `--mode greenfield`: the folder will be created by `/specify`; defer resolution.
    - Else if `--mode biztalk`: the folder will be created by `/biztalk-reverse-engineer`; defer resolution.
-3. **Dry-run.** If `--dry-run` is set, print the resolved mode, folder (or "to be created"), platform, resume point, and the ordered command list that would be executed. Do not invoke any sub-prompt. Exit.
+3. **Dry-run.** If `--dry-run` is set, print the resolved mode, folder (or "to be created"), platform, resume point, the ordered command list that would be executed, and — if `--pause-after <stage>` is set — a `⏸ pause after <stage>` marker at the point the run would stop. Do not invoke any sub-prompt. Exit.
 
 ## Resume semantics
 
@@ -73,14 +75,49 @@ After each invoked sub-prompt returns:
 1. Re-read `<folder>/status.json` (the sub-prompt is required to refresh it as its last step, per the `pipeline-status` skill).
 2. Find the row for the stage that just ran. If `status != done`, retry the sub-prompt **once**. If still not `done`, **STOP** with: `"Stage <id> <name> did not reach done after retry. Last refreshedBy=<value>. Recover with: <command>."`
 3. Inspect `counts.sev1`, `counts.sev2`, `counts.blockedFlows` per the rules in "Stop conditions" below before proceeding.
+4. **Pause checkpoint.** If `--pause-after <stage>` was supplied and the stage that just reached `done` is the one it names (per the mapping in "Pause checkpoints" below), **STOP** with the review message — *after* the stage's own gates (clarifications / Sev) have passed, but *before* invoking the next stage's command.
 
 For every stop, after printing the primary recovery command, you MAY add one orientation line: `Need a quick reminder after the fix? Run /next <folder>.` This does not replace the primary recovery command.
+
+## Pause checkpoints
+
+When `--pause-after <stage>` is set, map the keyword to a pipeline stage and stop the run the first time that stage reaches `done` in this invocation:
+
+| `--pause-after` value | Stage | Artifact to review |
+|---|---|---|
+| `spec` | `1 Spec` | `<folder>/spec.md` |
+| `clarify` | `1a Clarifications` | `<folder>/clarifications.md` |
+| `model` | `2 Data model` | `<folder>/data-model.md` |
+| `contracts` | `3 Contracts` | `<folder>/contracts/` |
+| `mappings` | `4 Mappings (STM)` | `<folder>/mappings/` |
+| `ir` | `5 IR` | `<folder>/integration-ir.yaml` |
+| `review` | `5e Review` | `<folder>/review-report.md` |
+
+The stop message is:
+
+```
+Paused after <stage> for review. Review <artifact> and make any changes.
+Resume with: /run-pipeline --folder <folder> --mode <mode>
+```
+
+For `--pause-after spec` specifically, append this line so the user knows the spec-edit options (no PRD round-trip required):
+
+```
+Edit <folder>/spec.md directly, or fold in a change with /specify "<your change>" — no need to update the PRD first. Then resume.
+```
+
+Then add the standard orientation line: `Need a quick reminder before you resume? Run /next <folder>.`
+
+**One-time semantics.** On the resume run, the named stage is already `done`, so the resume point (first non-`done` stage) is *past* it — the checkpoint does not fire again and the run proceeds. If `--pause-after` names a stage that is already `done` when the run starts (resume point past it), do not pause; print one line: `--pause-after <stage> skipped — <stage> is already done.`
 
 ## Procedure
 
 ### Greenfield branch (`--mode greenfield`)
 
-1. **Intake.** If `--input` is a brief (no `.md` extension or doesn't exist as a file): run `/draft-prd "<input>"`. If it's a path to an existing PRD: skip.
+1. **Intake.**
+   - If `--input-file <path>` was supplied: read the file, strip HTML comment blocks (`<!-- … -->`), and run `/draft-prd "<stripped-contents>"` — the file is always a brief, so PRD authoring always runs. (If the file is missing or empty after stripping, stop with a malformed-input error.)
+   - Else if `--input` is a brief (no `.md` extension or doesn't exist as a file): run `/draft-prd "<input>"`.
+   - Else (`--input` is a path to an existing PRD `.md`): skip `/draft-prd`.
 2. `/specify --fresh [PRD-path]` — `--fresh` is **mandatory** here so the pipeline always creates a new integration folder rather than silently enriching the currently-active integration. Capture the resolved folder path from the prompt's output and use it for all subsequent steps.
 3. `/clarify <folder>` — see "Clarifications gate" below.
 4. `/model <folder>`.
@@ -178,6 +215,7 @@ The orchestrator halts mid-run for any of:
 | `/review` Sev-2 > 0 without `--allow-sev2` | sev-2 override message above |
 | `/plan` produced `plan-blocked.md` | phase-gate message above |
 | `/test-<platform>` failed | test-fix message above |
+| `--pause-after <stage>` checkpoint reached | pause/review message above (resume with `/run-pipeline --folder <folder> --mode <mode>`) |
 | Resumed run finds everything `done` except `12 Deploy` | `"Pipeline complete through /test-<platform>. Nothing to do. Run /deploy-<platform> manually when ready."` |
 
 Every stop must print **exactly one primary** next manual command the user can run to recover or proceed. It may also print `/next <folder>` as an optional orientation shortcut after that primary recovery command.
@@ -206,6 +244,13 @@ When the common tail completes successfully:
 
 - Fresh greenfield run:
   `/run-pipeline --mode greenfield --input "Order intake from HTTP, validate, publish to Service Bus"`
+
+- Fresh greenfield run from a multi-line brief file (what the VS Code "Run Pipeline" button sends):
+  `/run-pipeline --mode greenfield --input-file specs/_intake/brief.md --unattended`
+
+- Greenfield run that pauses after the spec so you can review/edit it before the rest is built:
+  `/run-pipeline --mode greenfield --input-file specs/_intake/brief.md --pause-after spec`
+  …then, after reviewing `spec.md`: `/run-pipeline --folder specs/<domain>/001-<slug> --mode greenfield`
 
 - Fresh BizTalk migration:
   `/run-pipeline --mode biztalk --input C:\Projects\BizTalk-Combined --allow-sev2`

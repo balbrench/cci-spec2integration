@@ -701,7 +701,7 @@
     });
     const formatForChannel = (ch) => {
       const b = ch.binding || {};
-      const fmt = friendlyFmt(b.wireFormat || b.contentType || ch.format);
+      const fmt = friendlyFmt(b.wireFormat || b.format || b.contentType || ch.format);
       if (fmt) return fmt;
       const msgName = channelToMsg[ch.name];
       const msg = msgName && msgByName_ctx[msgName];
