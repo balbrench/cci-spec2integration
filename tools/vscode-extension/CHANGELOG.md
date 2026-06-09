@@ -5,6 +5,24 @@ All notable changes to the **Spec2Integration Pipeline** extension are documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] — 2026-06-09
+
+Status-refresh hook fixes (`scripts/refresh-status.ps1`).
+
+### Fixed
+
+- **Stage 3a (Contracts lint) wrongly shown blocked** — the PostToolUse status
+  hook read the lint verdict from the top level, but the report nests it under
+  `summary.verdict`. With the field always `null`, a clean PASS (including a
+  Sev-3-advisory-only report) was rendered as `blocked` with an empty `verdict=`.
+  The hook now reads `summary.verdict` (falling back to top level), so a PASS is
+  reported `done`. Sev-3 advisories never block.
+- **Wrong next step after IR** — stage `5a` (IR validation) mapped its `next`
+  command to `/architect`; like `5b`–`5e` it runs as part of `/review`, so the
+  recommended next step after the IR is now `/review`.
+
+[1.0.2]: https://github.com/balbrench/cci-spec2integration/releases/tag/v1.0.2
+
 ## [1.0.1] — 2026-06-09
 
 Greenfield "Run Pipeline" fixes from end-to-end testing.

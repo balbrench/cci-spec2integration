@@ -2,7 +2,7 @@
   "name": "spec2integration",
   "displayName": "Spec2Integration Pipeline",
   "description": "In-IDE project launcher, navigator and guided command composer for the Spec2Integration spec-driven integration pipeline. Scaffolds greenfield or BizTalk-migration workspaces (bundled agents/skills/commands), shows every integration's pipeline stages live from status.json, and hands assembled slash commands to your Claude Code chat.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "BalbirSingh",
   "license": "MIT",
   "repository": {

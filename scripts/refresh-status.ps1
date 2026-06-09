@@ -161,12 +161,25 @@ function Get-StageProbe {
         [void]$stages.Add((New-Stage "3" "Contracts" "missing" "missing: $($parts -join ', ')"))
     }
 
-    # Stage 3a - Contracts lint
+    # Stage 3a - Contracts lint. The report nests its verdict under `summary`
+    # (summary.{sev1,sev2,sev3,verdict}); read that, falling back to a top-level
+    # `verdict` for resilience. A Sev-3-only report is verdict=PASS (advisory
+    # findings never block), so keying off the verdict is correct — reading the
+    # wrong (top-level) path returned $null and wrongly reported the stage blocked.
     $lintReport = Get-StageReport (Join-Path $IntegrationFolder "contract-lint-report.json")
-    if ($lintReport -and $lintReport.verdict -eq "PASS") {
-        [void]$stages.Add((New-Stage "3a" "Contracts lint" "done" "PASS"))
-    } elseif ($lintReport) {
-        [void]$stages.Add((New-Stage "3a" "Contracts lint" "blocked" "verdict=$($lintReport.verdict)"))
+    if ($lintReport) {
+        $lintSummary = if ($lintReport.PSObject.Properties['summary']) { $lintReport.summary } else { $lintReport }
+        $lintVerdict = $null
+        if ($lintSummary -and $lintSummary.PSObject.Properties['verdict']) {
+            $lintVerdict = $lintSummary.verdict
+        } elseif ($lintReport.PSObject.Properties['verdict']) {
+            $lintVerdict = $lintReport.verdict
+        }
+        if ($lintVerdict -eq "PASS") {
+            [void]$stages.Add((New-Stage "3a" "Contracts lint" "done" "PASS"))
+        } else {
+            [void]$stages.Add((New-Stage "3a" "Contracts lint" "blocked" "verdict=$lintVerdict"))
+        }
     } else {
         [void]$stages.Add((New-Stage "3a" "Contracts lint" "missing" ""))
     }
@@ -404,7 +417,7 @@ function Get-NextStep {
                 "3a"  { "/contracts" }
                 "4"   { "/map" }
                 "5"   { "/architect" }
-                "5a"  { "/architect" }
+                "5a"  { "/review" }
                 "5b"  { "/review" }
                 "5c"  { "/review" }
                 "5d"  { "/review" }
@@ -565,7 +578,7 @@ function Get-ProducerCommand {
         "3a"  { "/contracts" }
         "4"   { "/map" }
         "5"   { "/architect" }
-        "5a"  { "/architect" }
+        "5a"  { "/review" }
         "5b"  { "/review" }
         "5c"  { "/review" }
         "5d"  { "/review" }
