@@ -8,7 +8,7 @@ All agents, commands, and skills live directly under `.claude/`, which Claude Co
 
 | Tree | Contents |
 |---|---|
-| [.claude/agents/](.claude/agents/) | 34 agents grouped by prefix: unprefixed (core, platform-neutral), `biztalk-*` (BizTalk reverse engineering), `azure-*` (Azure target platform). |
+| [.claude/agents/](.claude/agents/) | 35 agents grouped by prefix: unprefixed (core, platform-neutral), `biztalk-*` (BizTalk reverse engineering), `azure-*` (Azure target platform). |
 | [.claude/commands/](.claude/commands/) | 27 slash commands. |
 | [.claude/skills/](.claude/skills/) | 34 skills covering EIP patterns, IR authoring, platform-specific layouts and decision tables. |
 
@@ -62,13 +62,13 @@ Default opening moves:
 
 ## Agents
 
-Agents are invoked exclusively via the `Agent` tool with `subagent_type: <agent-name>`. Slash commands call them; you should not need to call them directly. All 34 live in [.claude/agents/](.claude/agents/), namespaced by prefix:
+Agents are invoked exclusively via the `Agent` tool with `subagent_type: <agent-name>`. Slash commands call them; you should not need to call them directly. All 35 live in [.claude/agents/](.claude/agents/), namespaced by prefix:
 
 | Prefix | Agents |
 |---|---|
 | (none) — core, platform-neutral | clarifier, contract-designer, contract-linter, domain-architect, domain-modeler, flow-tester, integration-architect, ir-validator, mapping-designer, mapping-tester, pii-flow-checker, planner, prd-author, requirements-analyst, reviewer, secret-scanner, spec-coverage-checker, stm-drift-checker, target-architecture, task-decomposer |
 | `biztalk-` — brownfield intake | biztalk-contract-extractor, biztalk-inventory, biztalk-ir-compiler, biztalk-msi-cracker, biztalk-spec-author |
-| `azure-` — Azure target platform | azure-bicep-author, azure-cicd-author, azure-connections-binder, azure-data-factory-compiler, azure-functions-compiler, azure-local-functions-author, azure-logic-apps-compiler, azure-reviewer, azure-workflow-tester |
+| `azure-` — Azure target platform | azure-bicep-author, azure-cicd-author, azure-connections-binder, azure-data-factory-compiler, azure-functions-compiler, azure-local-functions-author, azure-logic-apps-compiler, azure-reviewer, azure-sql-schema-author, azure-workflow-tester |
 
 ### Skill preloading
 
@@ -97,7 +97,7 @@ Agents that must refresh `status.json`:
 | `flow-tester` | 6a (Flow tests) |
 | `planner` | 8 (Plan) |
 | `task-decomposer` | 9 (Tasks) |
-| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | 10 (Implement) |
+| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-sql-schema-author`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | 10 (Implement) |
 | `azure-workflow-tester` | 11 (Tests) |
 
 **How to update:** read the existing `status.json`, merge only the stage rows this agent owns (preserving all other keys including `artifactHashes` and `lastImplement`), and write it back. Never overwrite the full file from scratch unless the file doesn't exist yet.
@@ -122,7 +122,7 @@ spec2integration/
 ├── CLAUDE.md                    # this file
 ├── .claude/
 │   ├── settings.json            # permissions + hooks
-│   ├── agents/                  # 34 agents (core, biztalk-*, azure-*)
+│   ├── agents/                  # 35 agents (core, biztalk-*, azure-*)
 │   ├── commands/                # 27 slash commands
 │   └── skills/                  # 34 skills
 ├── schemas/                     # IR and domain JSON Schemas (see schemas/CLAUDE.md)
