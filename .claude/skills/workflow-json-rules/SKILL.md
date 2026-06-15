@@ -158,6 +158,24 @@ SplitOn debatches the array so each item fires a separate workflow run. Only use
 - ⚠️ **`splitOn` requires a `Stateful` workflow.** A `Stateless` workflow with `splitOn` fails validation: *"The 'splitOn' property is not supported in stateless workflow."* If a flow is genuinely a stateless passthrough, it must NOT use `splitOn`; if debatching is required, make the workflow `Stateful`.
 - ⚠️ **Any flow with a polling / non-Request trigger MUST be `Stateful` — NEVER `Stateless`.** Stateless workflows in Logic Apps Standard support ONLY a `Request` (HTTP) trigger; a polling service-provider trigger (FTP/FileSystem/SFTP/Blob "when a file is added", Service Bus, timer/recurrence, etc.) on a stateless workflow does not register. **Do NOT mark a file-trigger passthrough (e.g. FTP→FTP) stateless** — that was a prior defect: at runtime the host raises `WorkflowProcessingFailed ... 'The method or operation is not implemented.'` (verified). Stateless is permitted ONLY for a synchronous HTTP Request/Response flow. See §4.1.
 
+### 3.2 Reading SQL built-in connector result sets (HARD rule — verified at runtime)
+
+The Logic Apps Standard **SQL built-in / service-provider** connector (`serviceProviderId: /serviceProviders/sql`, `executeStoredProcedure` / `executeQuery`) returns this body shape:
+
+```json
+{ "OutputParameters": {}, "ResultSets": [ [ { "col": "val" }, { "col": "val" } ] ], "ReturnCode": 0 }
+```
+
+`ResultSets` is **PascalCase** and is an **array of result sets**, each itself an array of rows. To iterate the rows of the first result set in a `For_each`, use the empty-safe form:
+
+```json
+"foreach": "@coalesce(first(body('<SqlAction>')?['ResultSets']), json('[]'))"
+```
+
+- ⚠️ **Use `coalesce(first(...), json('[]'))`, NOT `?['ResultSets'][0]`.** When the stored procedure returns **zero rows** (a polling claim on an idle cycle — the normal case most of the time), the connector returns `"ResultSets": []` (empty array), and `[0]` throws *`array index '0' cannot be selected from empty array`*, failing the run on every idle tick. `first()` returns null on an empty array, and `coalesce(..., json('[]'))` yields an empty array the `For_each` simply skips.
+- ❌ **NEVER `@body('<SqlAction>')?['resultSets']?['Table1']`** — that is the **managed (API) SQL connector** shape (lowercase `resultSets`, object keyed by `Table1`). It does NOT match the built-in connector and fails at runtime: *`property 'Table1' cannot be selected. Array elements can only be selected using an integer index`* — the claim/poll loop then never iterates and the whole delivery flow is dead. Casing matters (`?['...']` access is case-sensitive).
+- Inside the loop, read each column with `@items('<ForEach>')?['<columnName>']` using the exact column name the stored procedure's result set emits (match the `OUTPUT`/`SELECT` column aliases).
+
 ---
 
 ## 4. File System Trigger & Path Semantics
