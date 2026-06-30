@@ -119,6 +119,11 @@ For each flow F where `implementation.host == data-factory`:
    | `wireTap` | Parallel `Copy` activity branch writing to the wire-tap sink. |
    | `claimCheck` | `Set Variable` writing the blob URI; downstream activities reference the URI rather than the payload. |
 
+   **Mapping Data Flow authoring rules** (each of these produces a *green* run with wrong or duplicate data if missed — they are not optional):
+   - **Upsert requires an `alterRow`.** A SQL/database sink with `upsertable: true` + `keys` does **not** upsert by itself — without an upstream `alterRow(upsertIf(true()))` (or finer per-row policy) every row defaults to **insert**, causing `Violation of UNIQUE KEY` failures on re-run and breaking idempotency (Article III / restartability). Emit an `alterRow` immediately before every database sink whose IR mapping is an upsert, register it in `transformations[]`, and set the sink `keys` to the business key.
+   - **Trim delimited-source header names.** A delimited (CSV) source whose file uses `", "` separators carries a leading space on every header *except the first*, so `byName('Col')` silently returns null (dropped rows, blank fields — a green run that loses data). Immediately after the source, emit a rule-based `select(mapColumn(each(match(true()), trim($$) = $$)), skipDuplicateMapInputs: true, skipDuplicateMapOutputs: true)` to normalise header names *before* any `byName(...)`/derive, and register it in `transformations[]`. (This mirrors the per-value `trim(...)` the mappings already apply.)
+   - Use `allowSchemaDrift: true` on sources and sinks when the IR discards unmapped columns; reference columns by `byName(...)`; and write null tests as `!isNull(col)`, never `col != null()`.
+
    Default activity policy: `retry: 3`, `retryIntervalInSeconds: 60`, `timeout: "0.12:00:00"` (12h). Override from the IR's `errorHandling` block when present.
 
 6. **Wire error handling and DLQ.** For every external hop:
