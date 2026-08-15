@@ -1,7 +1,8 @@
 # Spec2Integration — end-to-end review (2026-08)
 
 Scope: the pipeline contract (CLAUDE.md + constitution), all 35 agents, 27 commands and
-34 skills, the JSON schemas, the VS Code extension (v1.0.2) and both visualizers.
+34 skills (including a content pass over the 25 Azure-facing ones), the JSON schemas, the
+VS Code extension (v1.0.2) and both visualizers.
 
 Method: static review plus a few executable checks — `tsc --noEmit` on the extension
 (clean), `node esbuild.js --production` (clean, 56.6 kB), `node scripts/sync-assets.js`
@@ -17,7 +18,7 @@ Method: static review plus a few executable checks — `tsc --noEmit` on the ext
   hard Bash gates in `/implement-azure` (8a `az bicep build`, 8b strict-parse of every
   `adf/*.json`). Those two gates are the best pattern in the repo — a deterministic check
   owned by the orchestrator precisely because the agent that emitted the artifact has no
-  Bash to verify it. More of the pipeline should look like this (see §4.1).
+  Bash to verify it. More of the pipeline should look like this (see §5.1).
 - **Skill preloading is the right call** and the rationale in CLAUDE.md is correct — it
   converts "the model might read the connector reference" into "the connector reference
   is in context". Applied consistently across the heavy Azure compilers.
@@ -212,9 +213,126 @@ doc wasn't updated.
 
 ---
 
-## 3. Visualizers
+## 3. Azure skills
 
-### 3.1 IR visualizer (webview) — the graph never refreshes
+Reviewed the 25 Azure-facing skills (`workflow-json-rules`, `connections-json-generation-rules`,
+`logic-apps-builtin-connectors`, `logicapp-standard-layout`, `scaffold-logic-apps-project`,
+`logicapp-cloud-deployment`, `logic-apps-standard-testing`, `logic-apps-resilience-observability`,
+`no-stubs-code-generation`, `integration-account-artifacts`, `edi-x12`, `data-factory`,
+`ais-platform`, `api-management`, `service-bus`, `event-grid`, `event-hubs`, `azure-functions`,
+`batch-processing`, `dotnet-local-functions`, `logic-apps-rules-engine`, `eip-to-azure-mapping`,
+`logic-apps-planning-rules`, `logic-app-patterns`, `runtime-validation-and-testing`).
+
+**These are the strongest artifacts in the repo.** They are specific where it counts (exact
+`operationId` casing, `serviceProviderId` values, the FTP-vs-FileSystem naming trap), they carry
+provenance for hard-won facts (`[VERIFIED — deployed runtime]`, *"This was a real bug"*, dated
+runtime versions), and they cross-reference each other correctly. Three things I expected to be
+contradictions turned out to be right:
+
+- `.bicepparam` vs `main.parameters.json` — looks like a conflict across four files; is actually
+  correct and explained (`logicapp-cloud-deployment` §: `azd provision` reads
+  `main.parameters.json` and does *not* read `.bicepparam`; both are emitted deliberately).
+- `mountPath` rules agree exactly between `connections-json-generation-rules` §3.4 and
+  `logicapp-cloud-deployment` §5, down to the single-subdirectory-of-`/mounts` constraint.
+- the EDI `schemaReferences[]` post-upload PATCH is stated identically in
+  `connections-json-generation-rules`, `integration-account-artifacts`, `edi-x12` and
+  `conversion-task-plan-rules`.
+
+No orphans either: every one of the 34 skills is reachable from at least one agent, and the
+preloaded-vs-on-demand split matches the documented policy (always-needed authoritative skills in
+`skills:` frontmatter; per-channel/per-format skills named in `## Inputs` prose).
+
+The defects below are narrower than §2's, but two of them sit inside *preloaded* skills — which
+means they are injected into the compiler's context on every single run.
+
+### A-1 (Sev-1). The compiler already branches on channel kinds the schema forbids
+
+`.claude/agents/azure-logic-apps-compiler.md:141` handles `ftp` / `filesystem` / `sftp`
+file-drop intake explicitly, with a full substitution pattern. **None of those three is a legal
+`channel.kind`** (schema line 167). This is the same defect as F-2, but it confirms it from the
+other end: this is not a theoretical modelling gap, there is already-written, carefully-reasoned
+compiler logic that no schema-valid IR can ever reach.
+
+Note the exact spellings when fixing F-2 — the compiler expects `ftp`, `filesystem`, `sftp`
+(not `file`). Adopt the compiler's names in the enum rather than inventing new ones.
+
+### A-2 (Sev-2). `scaffold-logic-apps-project` emits an `azure.yaml` that `azd` cannot use
+
+§3.17 gives *verbatim file content* for `../azure.yaml`:
+
+```yaml
+name: <slug>
+metadata:
+  template: spec2integration-azure@1.0.0
+# Add services only for stand-alone Function Apps...
+```
+
+There is no `infra:` block. That contradicts, in order:
+
+- **its own §5 verification gate** — *"`azure.yaml` (integration root) points `infra.path` at
+  `./infra`"*;
+- `templates/azure/azure.yaml`, which has the full `infra: {provider, path, module}` block;
+- `/implement-azure` step 6 — *"with `infra.path: ./infra`"*.
+
+This is a "verbatim content" block in a **preloaded** skill, so the literal-copy behaviour it asks
+for is exactly what produces the broken file. `azd provision` has no template to deploy.
+
+Same file, §0: *"`azure.yaml` at the integration root references `./app`"* — the direct opposite of
+the rule stated three lines below it in §3.17's own comment and in `/implement-azure` step 6 (Logic
+Apps Standard content is package-deployed, never an azd service).
+
+### A-3 (Sev-2). A preloaded skill tells the compiler a capability it has doesn't exist
+
+`workflow-json-rules` §4.1 documents the verified runtime failure of native file-added
+service-provider triggers and prescribes the Recurrence + list-files + `For_each` +
+`getFtpFileContentV2` replacement — then closes with:
+
+> *"(Until the compiler emits this pattern, file-intake flows deploy but their trigger will not
+> register — track as a known limitation.)"*
+
+The compiler **does** emit it — `azure-logic-apps-compiler.md:141`, including the Event Grid
+alternative and the "note the substitution in the run summary" instruction. The caveat is stale and
+actively misleading: it invites the compiler to treat working behaviour as a known-broken area.
+
+### A-4 (Sev-2). Two preloaded skills disagree about TODO markers
+
+`workflow-json-rules` §1.4: *"Do NOT invent `operationId` values. If you can't find a reference,
+**flag it as a TODO**."*
+`no-stubs-code-generation`: `// TODO` comments and `"value": "TODO"` in any action input are both
+**Sev-1**, with regexes to detect them.
+
+Both are preloaded into `azure-logic-apps-compiler`, so the agent receives both rules in the same
+context. The intent of each is fine; the instruction should be reconciled to *"stop and report the
+missing reference"* — which is what no-stubs actually requires and what the catalog cross-check in
+§5.1 would make cheap.
+
+### A-5 (Sev-3). Layout skill's `infra/` tree is stale
+
+`logicapp-standard-layout` lists `parameters.dev.bicepparam` / `parameters.prod.bicepparam` and a
+`modules/keyvault.bicep`, but omits `main.parameters.json` — which `/implement-azure` gate 8a hard-
+requires and `azure-bicep-author` §6b calls a Sev-1 omission — and omits `datafactory.bicep`, which
+exists in `templates/azure/infra/modules/`. `azure-reviewer` preloads this skill as its audit
+reference for the emitted tree.
+
+### A-6 (Sev-3). "Mandatory Reference Lookup" never says where to look
+
+`workflow-json-rules` §1 is three phases of *"Search reference workflows…"*, *"Search reference
+connections…"* with no path anywhere in the section. The actual location is
+`templates/azure/reference-workflows/`, indexed by `catalog.json` (63 entries, and current). For
+the one rule whose entire purpose is "never guess an `operationId`", leaving the lookup target
+implicit is the single determinism hole in an otherwise very tight skill. Name the folder and the
+catalog in §1.1.
+
+### A-7 (Sev-3). `scaffold-logic-apps-project` frontmatter miscounts its own manifest
+
+The description — the part that gets injected and indexed — says *"17-file manifest"*. The manifest
+heading, the file table, and the §5 verification gate all say **18**.
+
+---
+
+## 4. Visualizers
+
+### 4.1 IR visualizer (webview) — the graph never refreshes
 
 `tools/vscode-extension/src/extension.ts:404-406` watches `status.json`, `state.json` and
 the BizTalk inventory/catalogue. **It does not watch `integration-ir.yaml`**, and
@@ -258,7 +376,7 @@ Other visualizer gaps, roughly in value order:
    same channel, and it reads `ch.format`, which `additionalProperties: false` makes an
    impossible field.
 
-### 3.2 Two visualizers, one IR
+### 4.2 Two visualizers, one IR
 
 `/visualize` writes a Mermaid diagram to `docs/generated/flows.md`; the webview draws a
 Cytoscape graph. Both derive from the same IR with entirely independent traversal logic, so
@@ -266,7 +384,7 @@ they can and will disagree. Worth deciding whether the Mermaid output is the sha
 export of the webview's model (generate it from the same node/edge builder) or a separate
 deliberately-simpler artifact — and saying which in the docs.
 
-### 3.3 Extension packaging
+### 4.3 Extension packaging
 
 Builds clean (`tsc --noEmit` 0 errors; esbuild 56.6 kB; assets 4.7 MB, dominated by the
 vendored Microsoft reference docs under `skills/*/reference/`, which is the intended
@@ -277,11 +395,11 @@ absence of a CI job that runs `npm run package` on a PR.
 
 ---
 
-## 4. Recommended improvements to the end-to-end process
+## 5. Recommended improvements to the end-to-end process
 
 Ordered by value-to-effort.
 
-### 4.1 Make every gate executable
+### 5.1 Make every gate executable
 
 The `/implement-azure` 8a/8b gates are the model: *the orchestrator has Bash, so the
 orchestrator verifies what the Bash-less agent emitted.* Generalise it:
@@ -300,7 +418,7 @@ That last row is the highest-value addition: the repo's stated worst failure mod
 guessed `operationId`, preloading makes it *less likely*, and a catalog cross-check makes it
 *detectable*.
 
-### 4.2 Add CI (one workflow, five jobs)
+### 5.2 Add CI (one workflow, five jobs)
 
 `typecheck+bundle+package` the extension · `catalog.json` regenerate-and-diff ·
 `ajv` over `examples/` and `tests/ir-validator/fixtures/*/integration-ir.yaml` ·
@@ -308,35 +426,40 @@ a doc-consistency script (counts in README/CLAUDE.md/agent-reference vs `ls .cla
 markdown link check excluding `skills/*/reference/`. All five are minutes of work and
 would have caught F-5 and F-10 automatically.
 
-### 4.3 Resolve the status-ownership contradiction (F-1) and generate the stage table
+### 5.3 Resolve the status-ownership contradiction (F-1) and generate the stage table
 
 Pick command-ownership, then make the stage table a single generated source: one
 `stages.json` from which the skill's markdown table, `commandCatalog.ts`, and the
 pipeline-runner's `STAGE_CMD` are produced. That kills F-8 permanently and makes adding a
 stage a one-file change.
 
-### 4.4 Port `refresh-status.ps1` to Node
+### 5.4 Port `refresh-status.ps1` to Node
 
 858 lines of PowerShell is the only Windows-only component in a stack that otherwise runs
 anywhere; Node is already a hard dependency (esbuild, ajv, spectral, the catalog builder).
 A single `scripts/refresh-status.mjs` makes the always-on staleness probe genuinely
 always-on, and lets the scaffolder drop the `pwsh` probe.
 
-### 4.5 Extend the channel model before the next platform pack (F-2)
+### 5.5 Extend the channel model before the next platform pack (F-2)
 
-`file`/`ftp`/`sftp`/`eventhub` are needed *today* by the BizTalk path. Doing it now, with
-one pack in the tree, is far cheaper than doing it once `aws-*` or `mulesoft-*` agents also
-depend on the enum.
+`ftp`/`filesystem`/`sftp`/`eventhub` are needed *today* by the BizTalk path — and per A-1
+the Logic Apps compiler is already written against the first three. Use the compiler's exact
+spellings. Doing this now, with one pack in the tree, is far cheaper than doing it once
+`aws-*` or `mulesoft-*` agents also depend on the enum.
 
-### 4.6 Close the visualizer loop
+The four Azure-skill fixes (A-2 azure.yaml, A-3 stale caveat, A-4 TODO conflict, A-6 missing
+lookup path) are each a few lines of edit in a preloaded skill, and all four change what the
+compiler is told on every run. They are the cheapest items on this list.
 
-IR watcher + `{type:'ir'}` message (§3.1), review findings overlaid alongside validation
+### 5.6 Close the visualizer loop
+
+IR watcher + `{type:'ir'}` message (§4.1), review findings overlaid alongside validation
 findings, host badges on flow nodes. Together these turn the viewer from a static picture
 into the live cockpit the progress panel is already trying to be.
 
-### 4.7 Then, and only then, consider the structural refactor
+### 5.7 Then, and only then, consider the structural refactor
 
 `docs/architecture-review-skills-agents.md` item 1 — collapsing thin single-agent commands
 (`/model`, `/architect`, `/map`, `/contracts`, `/specify`, `/tasks`) into forking skills —
 is still a reasonable direction, but it touches every entry point. It is worth strictly
-less than 4.1–4.4, and it is much safer to do once CI exists to prove nothing regressed.
+less than 5.1-5.4, and it is much safer to do once CI exists to prove nothing regressed.
