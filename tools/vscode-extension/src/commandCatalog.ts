@@ -52,7 +52,7 @@ export interface CommandSpec {
   command: string; // includes leading slash
   label: string; // human label for the picker
   detail: string; // one-line description
-  group: 'Intake' | 'Core' | 'Test' | 'Review' | 'Platform' | 'Reporting' | 'Guided' | 'BizTalk';
+  group: 'Intake' | 'Core' | 'Test' | 'Review' | 'Platform' | 'Reporting' | 'Maintenance' | 'Guided' | 'BizTalk';
   args: ArgSpec[];
 }
 
@@ -225,6 +225,8 @@ export const COMMANDS: CommandSpec[] = [
   folderOnly('/next', '/next — recommended next step', 'Shortest answer to "what now?".', 'Reporting'),
   folderOnly('/visualize', '/visualize — Mermaid flow diagram', 'Render IR flows to docs/generated/flows.md.', 'Reporting'),
   folderOnly('/drift-check', '/drift-check — verify generated artifacts', 'Compare artifacts against recorded hashes.', 'Reporting'),
+  folderOnly('/analyze', '/analyze — cross-artifact consistency report', 'One read-only conflict table: coverage, orphans, drift, staleness.', 'Reporting'),
+  folderOnly('/idd', '/idd — Solution Design Document', 'Render the IR, contracts and decisions.md into docs/solution-design.md.', 'Reporting'),
   {
     command: '/use',
     label: '/use — set the active integration folder',
@@ -240,6 +242,39 @@ export const COMMANDS: CommandSpec[] = [
     args: [
       { kind: 'path', title: 'First integration-ir.yaml', canPickFiles: true },
       { kind: 'path', title: 'Second integration-ir.yaml', canPickFiles: true },
+    ],
+  },
+
+  // ---- Maintenance ----
+  {
+    command: '/change',
+    label: '/change — targeted edit to a deployed integration',
+    detail: 'Route one change to the owning agent; records a DD-NN decision.',
+    group: 'Maintenance',
+    args: [
+      { kind: 'text', title: 'Change description', placeholder: 'e.g. widen the staging email column to 320 chars' },
+      { kind: 'folder' },
+      { kind: 'text', flag: '--agent', title: 'Force the owning agent (optional, blank to auto-route)', placeholder: 'e.g. azure-sql-schema-author', quote: false, optional: true },
+      { kind: 'flags', title: 'Flags', options: [{ label: 'dry run (show routing, edit nothing)', flag: '--dry-run' }] },
+    ],
+  },
+  {
+    command: '/lifecycle',
+    label: '/lifecycle — show, freeze, or unfreeze an integration',
+    detail: 'Freeze protects deployed artifacts from regeneration.',
+    group: 'Maintenance',
+    args: [
+      {
+        kind: 'choice',
+        title: 'Action',
+        options: [
+          { label: 'show', value: '', description: 'Show the current lifecycle and frozen stages' },
+          { label: 'freeze', value: 'freeze', description: 'Mark post-implementation; guarded commands refuse to regenerate' },
+          { label: 'unfreeze', value: 'unfreeze', description: 'Re-open for regeneration' },
+        ],
+      },
+      { kind: 'folder' },
+      { kind: 'text', flag: '--stage', title: 'Freeze only these stage ids (optional, e.g. 10 or 5,10)', placeholder: '10', quote: false, optional: true },
     ],
   },
 

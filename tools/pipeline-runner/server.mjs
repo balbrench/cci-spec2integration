@@ -41,7 +41,7 @@ function getFlag(name) {
 
 // Slash commands the runner is allowed to launch. Everything else is rejected.
 const ALLOWED_COMMANDS = new Set([
-  '/status', '/next', '/use', '/visualize', '/ir-diff', '/drift-check',
+  '/status', '/next', '/use', '/visualize', '/ir-diff', '/drift-check', '/analyze', '/idd',
   '/clarify', '/model', '/contracts', '/map', '/architect',
   '/review', '/plan', '/tasks',
   '/test-mappings', '/test-flows',

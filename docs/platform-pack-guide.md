@@ -205,6 +205,8 @@ Run the `/implement-<plat>` orchestration:
 
 Create matching commands for `/test-<plat>` and `/deploy-<plat>`.
 
+**Register every new command in the UIs.** The VS Code extension's command composer is driven by a hard-coded list, so a new slash command is invisible there until it has an entry in [`tools/vscode-extension/src/commandCatalog.ts`](../tools/vscode-extension/src/commandCatalog.ts) with its argument shape. A command whose only argument is the integration folder can also be added to the web runner, in both `QUICK` in [`tools/pipeline-runner/index.html`](../tools/pipeline-runner/index.html) and `ALLOWED_COMMANDS` in [`tools/pipeline-runner/server.mjs`](../tools/pipeline-runner/server.mjs). The runner only launches folder-argument commands, so leave out commands that take free text or verbs.
+
 ### 5. Add templates (optional)
 
 If your compiler needs skeleton files, add them under `templates/<plat>/`.
