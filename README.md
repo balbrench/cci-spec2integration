@@ -1,6 +1,6 @@
 # Spec2Integration
 
-A spec-driven integration pipeline for Claude Code. Converts a PRD into a fully deployed integration solution through a strict sequence of agents and slash commands. All 37 agents, 31 commands, and 37 skills live directly under [.claude/](.claude/), grouped by naming prefix — no plugin or marketplace registration required.
+A spec-driven integration pipeline for Claude Code. Converts a PRD into a fully deployed integration solution through a strict sequence of agents and slash commands. All 38 agents, 32 commands, and 37 skills live directly under [.claude/](.claude/), grouped by naming prefix — no plugin or marketplace registration required.
 
 ## Quick Start
 
@@ -126,15 +126,15 @@ PRD → /specify → spec.md → /model → data-model.md → /contracts → con
 CLAUDE.md                       # Project guide + constitution (loaded by Claude Code at start)
 .claude/
 ├── settings.json               # Permissions + hooks
-├── agents/                     # 34 agents (core, biztalk-*, azure-*)
+├── agents/                     # 38 agents (core, biztalk-*, azure-*)
 │   └── ...                     #   prd-author, clarifier, integration-architect, target-architecture, …
 │                               #   biztalk-msi-cracker, biztalk-inventory, biztalk-spec-author, …
 │                               #   azure-logic-apps-compiler, azure-functions-compiler, …
-├── commands/                   # 31 slash commands
+├── commands/                   # 32 slash commands
 │   └── ...                     #   /run-pipeline, /specify, /architect, /plan, /tasks, …
 │                               #   /biztalk-inventory, /biztalk-reverse-engineer
 │                               #   /implement-azure, /test-azure, /deploy-azure, /platform
-│                               #   /change, /lifecycle, /analyze, /idd   (maintenance phase)
+│                               #   /change, /lifecycle, /analyze, /reconcile, /idd   (maintenance phase)
 └── skills/                     # 37 skills
     └── ...                     #   eip-patterns, ir-authoring, pipeline-status, no-stubs-code-generation, …
                                 #   biztalk-decompilation, biztalk-msi-extraction, biztalk-to-azure-mapping

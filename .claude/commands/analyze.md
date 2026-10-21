@@ -17,6 +17,8 @@ This command is **read-only with respect to pipeline artifacts** — it writes o
    - `ir-validator` → `ir-validation-report.json` (requires `integration-ir.yaml`).
    - `stm-drift-checker` → `stm-drift-report.json` (requires `integration-ir.yaml` + `mappings/`).
 
+2a. **Then run the spec↔code reconciler** (after the fan-out, because it reads the fresh `spec-coverage-report.json`). Read `activePlatform` from `.spec2integration/state.json`; if `.claude/agents/<activePlatform>-spec-code-reconciler.md` exists and the folder has at least one generated artifact tree (`app/`, `adf/`, `sql/`, `infra/`, `FunctionApps/`, `Functions/`), invoke it → `reconciliation-report.json`. Otherwise note it as "not run — <reason>".
+
 3. **Read the existing reports** (do not re-run their producers): `review-report.json` (if present), `pii-flow-report.json`, `flow-test-report.json`, `mapping-test-report.json`, `contract-lint-report.json`, and `status.json` (for `staleness` and `artifactHashes`).
 
 4. **Compute the cross-artifact conflicts** that no single checker owns:
@@ -24,6 +26,7 @@ This command is **read-only with respect to pipeline artifacts** — it writes o
    - **Orphan IR constructs** — IR flows/channels/mappings that trace back to no requirement (from `spec-coverage-report.json`).
    - **Orphan tasks** — tasks in `tasks.md` whose `<links: …>` reference an IR flow, mapping, channel, or contract that does not exist in `integration-ir.yaml` / `contracts/`. Grep `tasks.md` for the referenced names and confirm each exists.
    - **Plan ⇄ spec contradictions** — choices stated in `plan.md` that contradict a spec clause (e.g. plan picks a host/pattern a non-functional requirement forbids, or a flow the spec marks out-of-scope). Report as advisory observations with the two conflicting lines quoted.
+   - **Spec↔code** — every finding in `reconciliation-report.json`: IR constructs with no implementing artifact, artifacts no IR construct accounts for, requirements the IR satisfies but nothing implements, and transforms whose equivalence couldn't be confirmed.
    - **STM drift** — `STM_DRIFT` findings from `stm-drift-report.json`.
    - **Artifact drift** — when `status.json` has `artifactHashes`, recompute SHA-256 for a sample of the recorded files (PowerShell `Get-FileHash`, or `sha256sum`) and flag any whose digest no longer matches (same check as `/drift-check`). Note hand-edits that have not been re-baselined.
    - **Staleness** — every entry in `status.json.staleness` (upstream edited after a downstream artifact). If `status.json` is Bash-stale (`staleness_probed: false`), recompute mtimes per the dependency map in the `pipeline-status` skill.
@@ -40,7 +43,7 @@ This command is **read-only with respect to pipeline artifacts** — it writes o
    | 3 | ARTIFACT_DRIFT | adf/pipelines/Deliver.json | hash ≠ baseline; hand-edited since /implement | re-baseline via /change or /drift-check |
    | … |
    ```
-   Group the body under headings (Coverage, Traceability, Tasks, Plan consistency, Drift, Staleness) and end with a one-line **Summary** counting findings per category. Also emit `<folder>/analysis-report.json` with the same findings as an array (`{ id, category, artifact, detail, suggestedFix }`).
+   Group the body under headings (Coverage, Traceability, Tasks, Plan consistency, Spec↔code, Drift, Staleness) and end with a one-line **Summary** counting findings per category. Also emit `<folder>/analysis-report.json` with the same findings as an array (`{ id, category, artifact, detail, suggestedFix }`).
 
 6. Print the summary counts and the path to the report, then ask one short follow-up: `What do you want to do next?` with choices derived from the top findings (e.g. `Re-run /architect to cover the missing requirement`, `Fix orphan links in tasks.md`, `Re-baseline drift: /change or /drift-check <folder>`, `Stop here`).
 

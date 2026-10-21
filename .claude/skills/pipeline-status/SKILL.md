@@ -28,7 +28,7 @@ description: How to refresh `<folder>/status.json` — the derived per-integrati
 
 **Read-only agents** (`ir-validator` when run standalone, `spec-coverage-checker`, `stm-drift-checker`, `pii-flow-checker`, `secret-scanner`) still update their specific sub-stages (5a, 5b, 5c, 5d) — they produce report files that have a definitive pass/fail verdict.
 
-It does **not** apply to read-only prompts (`/ir-diff`, `/visualize`, `/drift-check`, `/analyze`, `/idd` when run in report-only mode) or utility agents that don't produce stage-model integration artifacts (`prd-author`, `domain-architect`, `target-architecture`, `solution-design-author`).
+It does **not** apply to read-only prompts (`/ir-diff`, `/visualize`, `/drift-check`, `/analyze`, `/reconcile`, `/idd` when run in report-only mode) or utility agents that don't produce stage-model integration artifacts (`prd-author`, `domain-architect`, `target-architecture`, `solution-design-author`, and each pack's `<plat>-spec-code-reconciler` such as `azure-spec-code-reconciler`).
 
 ## Stage ownership map
 

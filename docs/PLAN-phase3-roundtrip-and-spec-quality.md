@@ -1,6 +1,6 @@
 # Plan: Round-trip and spec quality
 
-**Status:** Plan for review (not yet implemented)
+**Status:** Implemented (branch `Enhancements2`). Two details changed during implementation and are reflected below: the reconciler reads requirement text from `spec-coverage-report.json` rather than `spec.md` (Article II), and the coverage checker's FR parser was fixed to accept the plain `- FR-1.` ids the spec template uses.
 **Date:** 2026-10-21
 **Audience:** Engineers and architects implementing Spec2Integration changes
 **Builds on:** the maintenance-phase work merged in PR #16 — the lifecycle guard, `/change`, `/analyze`, `/idd` with `decisions.md`, and the Dataverse skill with `azure-dataverse-binder`.
@@ -77,6 +77,7 @@ Rules:
 | `.claude/agents/requirements-analyst.md` | Add `ears-requirements` to the `skills:` frontmatter so it is always preloaded. In the authoring step and the enrich-mode step, require each FR to be written in EARS. This also covers `/clarify`, which calls `requirements-analyst` to fold resolved answers back into `spec.md`. |
 | `.claude/agents/biztalk-spec-author.md` | Same as above: preload `ears-requirements` and write each inferred FR in EARS. Without this, migration specs keep free-form FRs and get less of the traceability benefit. |
 | `.claude/agents/spec-coverage-checker.md` | In "Parse spec.md", add `SHALL` / `SHALL NOT` / `REQUIRED` as MUST-level keywords (the checker recognises only `MUST` / `SHOULD` / `MAY` today). Capture an optional `earsResponse` (the text after the keyword) and run the forward-trace rule pack against the response clause first. Explicit response verbs match rules like `R-IDEMPOTENT`, `R-TRANSFORM` and `R-DLQ` far more reliably than full prose. |
+| `.claude/agents/spec-coverage-checker.md` (fix) | The FR/NFR/OQ parser only accepted bold ids (`- **FR-1.**`), but `templates/core/spec.md` writes plain ones (`- FR-1.`). Accept both. Also add `text`, `earsPattern`, and `earsResponse` to each `matrix.forward[]` row of `spec-coverage-report.json`, so the reconciler can quote requirements without reading `spec.md`. |
 | `templates/core/spec.md` | Show the EARS form in the Functional requirements section (`FR-1. WHEN … THE SYSTEM SHALL …`), with a one-line comment pointing at the skill. |
 | `CLAUDE.md`, `README.md` | Skill count +1. |
 
@@ -128,13 +129,14 @@ A new **read-only, advisory** reconciliation pass compares declared intent (`spe
 
 | File | Change |
 |---|---|
-| `.claude/agents/azure-spec-code-reconciler.md` | **New.** The four-direction logic for the Azure artifact layout, the finding list above (all Sev-3), and the two output reports. Read-only, and exempt from `status.json` because it produces a report, not a stage artifact (like `target-architecture`). Reuses `spec-coverage-report.json` when present. |
+| `.claude/agents/azure-spec-code-reconciler.md` | **New.** The four-direction logic for the Azure artifact layout, the finding list above (all Sev-3), and the two output reports. Read-only, and exempt from `status.json` because it produces a report, not a stage artifact (like `target-architecture`). As a pack agent it **never reads `spec.md`** (Article II): requirement text comes from the `matrix.forward[]` rows of `spec-coverage-report.json`. |
 | `.claude/commands/reconcile.md` | **New.** A `[Reporting]` command: resolve the folder, require `integration-ir.yaml`, dispatch to `<activePlatform>-spec-code-reconciler`, print the summary, and ask a follow-up. Read-only: it writes only the report, never `status.json`. Not guarded by the lifecycle guard, since it never regenerates; it is the natural post-deployment check. |
 | `.claude/commands/analyze.md` | Add the reconciler to the parallel fan-out in step 2 (skipped when the active pack has none, or when there is no artifact tree yet), and merge its findings into the conflict table under a new **Spec↔code** heading. `/analyze` already describes itself as checking whether the spec, IR, plan, tasks and *deployed artifacts* agree, so it is the natural aggregator. |
 | `.claude/agents/reviewer.md` | State explicitly that `reconciliation-report.json` is advisory and is not aggregated into the review verdict. |
 | `.claude/skills/pipeline-status/SKILL.md` | Add `/reconcile` and `azure-spec-code-reconciler` to the read-only / exempt lists. |
 | `docs/platform-pack-guide.md` | List `<plat>-spec-code-reconciler` as an optional agent a platform pack can provide. |
-| `tools/vscode-extension/src/commandCatalog.ts` | Add a `folderOnly('/reconcile', …)` entry in the `Reporting` group. |
+| `tools/vscode-extension/src/commandCatalog.ts`, `tools/pipeline-runner/index.html`, `tools/pipeline-runner/server.mjs` | Add `/reconcile` to the extension catalog (`Reporting` group) and to the web runner's folder-command list and allow-list. |
+| `docs/agent-reference.md` | Add the reconciler (and the three agents from PR #16 that were never documented there). |
 | `CLAUDE.md`, `README.md` | Counts (agents +1, commands +1). Add `/reconcile` to the Reporting intent, add `azure-spec-code-reconciler` to the `azure-` agents row, and mention it in the maintenance-phase section. |
 
 ### Outputs

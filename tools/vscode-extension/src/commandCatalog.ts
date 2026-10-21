@@ -226,6 +226,7 @@ export const COMMANDS: CommandSpec[] = [
   folderOnly('/visualize', '/visualize — Mermaid flow diagram', 'Render IR flows to docs/generated/flows.md.', 'Reporting'),
   folderOnly('/drift-check', '/drift-check — verify generated artifacts', 'Compare artifacts against recorded hashes.', 'Reporting'),
   folderOnly('/analyze', '/analyze — cross-artifact consistency report', 'One read-only conflict table: coverage, orphans, drift, staleness.', 'Reporting'),
+  folderOnly('/reconcile', '/reconcile — spec/IR vs generated artifacts', 'Declared-but-missing, implemented-but-undeclared, unconfirmed transforms. Advisory.', 'Reporting'),
   folderOnly('/idd', '/idd — Solution Design Document', 'Render the IR, contracts and decisions.md into docs/solution-design.md.', 'Reporting'),
   {
     command: '/use',

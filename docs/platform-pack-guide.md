@@ -51,6 +51,7 @@ A new platform pack adds files directly into the existing `.claude/` tree — no
     <plat>-workflow-tester.md         # contracts + IR → native test harness
     <plat>-cicd-author.md             # → CI/CD pipeline
     <plat>-reviewer.md                # platform best-practice audit
+    <plat>-spec-code-reconciler.md    # optional: IR ↔ generated-artifact reconciliation (/reconcile)
   commands/
     implement-<plat>.md               # /implement-<plat>
     test-<plat>.md                    # /test-<plat>
@@ -111,6 +112,8 @@ Required agents: **compiler**, **connections-binder**, **infra-author**, **workf
 - [.claude/agents/azure-workflow-tester.md](../.claude/agents/azure-workflow-tester.md)
 - [.claude/agents/azure-cicd-author.md](../.claude/agents/azure-cicd-author.md)
 - [.claude/agents/azure-reviewer.md](../.claude/agents/azure-reviewer.md)
+
+Optional agent: **spec-code-reconciler**. `/reconcile` (and `/analyze`) dispatch to `<plat>-spec-code-reconciler` when it exists, so a pack that provides one gets spec↔code reconciliation with no command changes. It knows the pack's artifact layout, reads the IR plus `spec-coverage-report.json` (never `spec.md` itself), writes only `reconciliation-report.md` / `.json`, and reports every finding as Sev-3. Reference: [.claude/agents/azure-spec-code-reconciler.md](../.claude/agents/azure-spec-code-reconciler.md).
 
 ### 3. Create the EIP mapping skill
 
