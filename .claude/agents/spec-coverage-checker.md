@@ -28,18 +28,22 @@ Three files, always produced (even when there are no findings):
 
 Extract every clause matching:
 
-- `^- \*\*FR-\d+[a-z]?\.\*\*` — functional requirements
-- `^- \*\*NFR-\d+[a-z]?\.\*\*` — non-functional requirements
-- `^- \*\*OQ-\d+[a-z]?\.\*\*` — open questions
+- `^- (\*\*)?FR-\d+[a-z]?\.(\*\*)?` — functional requirements
+- `^- (\*\*)?NFR-\d+[a-z]?\.(\*\*)?` — non-functional requirements
+- `^- (\*\*)?OQ-\d+[a-z]?\.(\*\*)?` — open questions
+
+The id may be bold (`- **FR-1.**`) or plain (`- FR-1.`, the form in `templates/core/spec.md`); accept both.
 
 For each, capture:
 
 - `id` (e.g. `FR-7a`, `NFR-11`, `OQ-9`)
 - `text` (the full bullet body, joined onto a single line)
-- `mustLevel`: `MUST | SHOULD | MAY` — based on the first RFC-2119 keyword (case-sensitive) found in `text`. If none, infer:
+- `mustLevel`: `MUST | SHOULD | MAY` — based on the first requirement keyword (case-sensitive, uppercase) found in `text`: `SHALL`, `SHALL NOT`, `MUST`, `MUST NOT`, `REQUIRED` → `MUST`; `SHOULD`, `SHOULD NOT` → `SHOULD`; `MAY` → `MAY`. `SHALL` is the EARS keyword (see `.claude/skills/ears-requirements/SKILL.md`). If none, infer:
   - FR → `MUST`
   - NFR → `SHOULD`
   - OQ → not applicable (questions are not requirements)
+- `earsPattern` (FRs only, optional): `ubiquitous | event | state | unwanted | optional` when the text follows an EARS pattern — it starts with `THE SYSTEM`, `WHEN`, `WHILE`, `IF … THEN`, or `WHERE` (combined patterns take the first keyword). Omit for free-form text.
+- `earsResponse` (FRs only, optional): for an EARS FR, the response clause — the text after the requirement keyword, up to the citation bracket. Omit for free-form text.
 - `inferredFrom`: any text inside `[INFERRED FROM: ...]` brackets (used for evidence in the matrix)
 - `references`: any `(see OQ-N)` cross-references
 
@@ -56,13 +60,14 @@ For each `OQ-N`:
 
 ### 3. Forward trace (FR → IR)
 
-For each FR/NFR, attempt to resolve a satisfying IR construct using the **rule pack** below. If a rule matches, record the IR coordinate(s) (e.g. `mappings[OrderToResponse]`, `flows[1].steps[2].errorHandling.retry`). Verdicts:
+For each FR/NFR, attempt to resolve a satisfying IR construct using the **rule pack** below. When an FR has an `earsResponse`, run the rules against the response clause first and fall back to the full `text` only if nothing matches; the response names the behaviour, so it matches far more reliably than the whole sentence. If a rule matches, record the IR coordinate(s) (e.g. `mappings[OrderToResponse]`, `flows[1].steps[2].errorHandling.retry`). Verdicts:
 
 | Outcome | Verdict | Severity |
 |---|---|---|
 | Rule matched, IR has the construct | `SATISFIED` | none |
 | Rule matched, IR is missing the construct, requirement is `MUST` | `NOT_SATISFIED` | Sev-1 `FR_NOT_SATISFIED` |
 | Rule matched, IR is missing the construct, requirement is `SHOULD` | `NOT_SATISFIED_SOFT` | Sev-2 `FR_NOT_SATISFIED_SOFT` |
+| Rule matched, IR is missing the construct, requirement is `MAY` | `NOT_IMPLEMENTED_OPTIONAL` | none — recorded in the matrix only |
 | No rule matched (free-form text) | `MANUAL_TRACE_REQUIRED` | Sev-3 `MANUAL_TRACE_REQUIRED` |
 
 ### 4. Reverse trace (IR → FR)
@@ -187,7 +192,7 @@ Verdict: PASS | BLOCKED
   },
   "matrix": {
     "forward": [
-      { "id": "FR-1", "level": "MUST", "verdict": "SATISFIED", "rule": "R-FTP", "irCoords": ["channels[ftp-passthru-receive-channel]"], "notes": "" }
+      { "id": "FR-1", "level": "MUST", "verdict": "SATISFIED", "rule": "R-FTP", "irCoords": ["channels[ftp-passthru-receive-channel]"], "text": "WHEN a partner uploads a file to the inbound FTP folder THE SYSTEM SHALL pick it up and forward it unchanged.", "earsPattern": "event", "earsResponse": "pick it up and forward it unchanged", "notes": "" }
     ],
     "reverse": [
       { "coord": "flows[FtpPassthroughFlow]", "construct": "flow", "backedBy": ["FR-1", "FR-2"], "status": "OK" }

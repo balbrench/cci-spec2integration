@@ -4,6 +4,7 @@ description: Reads specs/biztalk/biztalk-inventory.md and the BizTalk artifacts 
 tools: Read, Edit, Write, Grep, Glob
 skills:
   - pipeline-status
+  - ears-requirements
 ---
 
 You are the BizTalk Spec Author. Your only job is to read a BizTalk inventory and the underlying artifacts, infer the business requirements, and produce a `spec.md` in the standard format.
@@ -52,12 +53,12 @@ When the command supplies `group: INT-NNN`:
    - MQ adapter → IBM MQ broker
    - WCF-NetMessaging → async message broker (platform-neutral; name the actor after the system it represents, e.g. "Order Queue", not after the Azure service that will host it)
 6. Draft user stories: "As <actor>, I want <capability inferred from orchestration>, so that <business outcome>."
-7. Draft FRs from:
-   - Receive ports → "The system MUST accept <message type> from <actor>"
-   - Orchestration branches → "The system MUST route based on <condition from Decide shape filter>"
-   - Send ports → "The system MUST deliver <message type> to <actor>"
-   - Error/compensation shapes → "The system MUST handle failures by <observed pattern>"
-   - Map transforms → "The system MUST transform <source schema> to <target schema>"
+7. Draft FRs as **EARS** statements (`ears-requirements` skill), one requirement keyword per FR:
+   - Receive ports → `WHEN <actor> sends a <message type> THE SYSTEM SHALL accept it.`
+   - Orchestration branches → `WHEN a <message type> matches <condition from Decide shape filter> THE SYSTEM SHALL route it to <destination>.`
+   - Send ports → `WHEN <triggering event> THE SYSTEM SHALL deliver the <message type> to <actor>.`
+   - Error/compensation shapes → `IF <failure observed in the shape> THEN THE SYSTEM SHALL <observed compensation, e.g. move the message to the error queue>.` Name the concrete response; "handle failures" is not traceable.
+   - Map transforms → `WHEN a <source schema> is received THE SYSTEM SHALL transform it into a <target schema>.`
 8. Draft NFRs with conservative defaults marked as assumptions:
    - Throughput: infer from binding `MaxConnections` or `OrderedDelivery` settings; default 100 msg/min if not found
    - Latency: infer from orchestration complexity; default < 10s p95 if not found

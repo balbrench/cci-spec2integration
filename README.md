@@ -1,6 +1,6 @@
 # Spec2Integration
 
-A spec-driven integration pipeline for Claude Code. Converts a PRD into a fully deployed integration solution through a strict sequence of agents and slash commands. All 37 agents, 31 commands, and 36 skills live directly under [.claude/](.claude/), grouped by naming prefix — no plugin or marketplace registration required.
+A spec-driven integration pipeline for Claude Code. Converts a PRD into a fully deployed integration solution through a strict sequence of agents and slash commands. All 37 agents, 31 commands, and 37 skills live directly under [.claude/](.claude/), grouped by naming prefix — no plugin or marketplace registration required.
 
 ## Quick Start
 
@@ -135,7 +135,7 @@ CLAUDE.md                       # Project guide + constitution (loaded by Claude
 │                               #   /biztalk-inventory, /biztalk-reverse-engineer
 │                               #   /implement-azure, /test-azure, /deploy-azure, /platform
 │                               #   /change, /lifecycle, /analyze, /idd   (maintenance phase)
-└── skills/                     # 36 skills
+└── skills/                     # 37 skills
     └── ...                     #   eip-patterns, ir-authoring, pipeline-status, no-stubs-code-generation, …
                                 #   biztalk-decompilation, biztalk-msi-extraction, biztalk-to-azure-mapping
                                 #   ais-platform, eip-to-azure-mapping, logic-app-patterns, azure-functions, …

@@ -24,8 +24,11 @@
 
 ## Functional requirements
 
-- FR-1. <testable statement>.  [PRD: <quote>]
-- FR-2. ...
+<!-- One EARS statement per FR, one requirement keyword each; see .claude/skills/ears-requirements/SKILL.md -->
+
+- FR-1. WHEN <trigger> THE SYSTEM SHALL <observable response>.  [PRD: <quote>]
+- FR-2. IF <failure or invalid input> THEN THE SYSTEM SHALL <response>.  [PRD: <quote>]
+- FR-3. ...
 
 ## Non-functional requirements
 

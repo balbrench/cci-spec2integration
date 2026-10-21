@@ -10,7 +10,7 @@ All agents, commands, and skills live directly under `.claude/`, which Claude Co
 |---|---|
 | [.claude/agents/](.claude/agents/) | 37 agents grouped by prefix: unprefixed (core, platform-neutral), `biztalk-*` (BizTalk reverse engineering), `azure-*` (Azure target platform). |
 | [.claude/commands/](.claude/commands/) | 31 slash commands. |
-| [.claude/skills/](.claude/skills/) | 36 skills covering EIP patterns, IR authoring, platform-specific layouts and decision tables. |
+| [.claude/skills/](.claude/skills/) | 37 skills covering EIP patterns, IR authoring, platform-specific layouts and decision tables. |
 
 The naming convention is the only grouping — there are no plugin boundaries. New platform support (AWS, MuleSoft, etc.) is added by dropping `<plat>-*` agents, commands, and skills directly into the same folders. See [docs/platform-pack-guide.md](docs/platform-pack-guide.md).
 
@@ -138,7 +138,7 @@ spec2integration/
 │   ├── settings.json            # permissions + hooks
 │   ├── agents/                  # 37 agents (core, biztalk-*, azure-*)
 │   ├── commands/                # 31 slash commands
-│   └── skills/                  # 36 skills
+│   └── skills/                  # 37 skills
 ├── schemas/                     # IR and domain JSON Schemas (see schemas/CLAUDE.md)
 ├── templates/                   # skeleton artifacts (see templates/CLAUDE.md)
 ├── src/pipeline/FlowTester/     # .NET 8 deterministic flow-test runner
