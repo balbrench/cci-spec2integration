@@ -8,6 +8,7 @@ Invoke the `domain-modeler` agent.
 
 Steps:
 1. Resolve the target integration folder per the **Resolving the integration folder** rules in `.claude/skills/pipeline-status/SKILL.md` (explicit argument → active integration → sole candidate → ask), then **pin** the resolved folder as `activeIntegration` in `.spec2integration/state.json`.
+1a. **Lifecycle guard.** Apply `.claude/skills/lifecycle-guard/SKILL.md`: read `<folder>/status.json`, and if `lifecycle == post-implementation` or stage 2 (Data model) is `frozen`, STOP and print the redirect block — regenerating `data-model.md` would overwrite the current model. Override only with `--force-regen`. Use `/change` for targeted edits on a frozen integration.
 2. If `clarifications.md` has unresolved Sev-1 questions, stop and ask the user to resolve them first.
 3. Call the `domain-modeler` agent with the folder path.
 4. Print the path to `data-model.md` and counts of entities, events, commands, and lookups. Also print this note verbatim:

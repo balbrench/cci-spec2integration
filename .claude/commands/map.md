@@ -8,6 +8,7 @@ Invoke the `mapping-designer` agent.
 
 Steps:
 1. Resolve the integration folder per the **Resolving the integration folder** rules in `.claude/skills/pipeline-status/SKILL.md` (explicit argument → active integration → sole candidate → ask), then **pin** the resolved folder as `activeIntegration` in `.spec2integration/state.json`.
+1a. **Lifecycle guard.** Apply `.claude/skills/lifecycle-guard/SKILL.md`: read `<folder>/status.json`, and if `lifecycle == post-implementation` or stage 4 (Mappings) is `frozen`, STOP and print the redirect block — regenerating the STM docs and the IR `mappings:` block may conflict with deployed mapping logic. Override only with `--force-regen`. Use `/change` for targeted mapping edits on a frozen integration.
 2. Require `contracts/openapi.yaml`, `contracts/asyncapi.yaml`, and at least one schema under `contracts/schemas/` to exist. If any are missing, instruct the user to run `/contracts` first.
 3. Call the `mapping-designer` agent with the folder path.
 4. After the agent runs, verify:

@@ -23,11 +23,12 @@ description: How to refresh `<folder>/status.json` — the derived per-integrati
 5. Set `refreshedBy` to the agent's name (e.g. `"reviewer"`, `"planner"`, `"azure-logic-apps-compiler"`).
 6. Recalculate `next` — find the earliest stage that is not `done` and set the appropriate command.
 7. Preserve `artifactHashes` and `lastImplement` keys if present — never overwrite them.
+7a. Preserve the lifecycle-guard fields: the top-level `lifecycle` key and each `stages[].frozen` flag. These are owned only by `/lifecycle` (see `.claude/skills/lifecycle-guard/SKILL.md`); a stage refresh keeps a row's `frozen` flag and never changes `lifecycle`. Treat them exactly like `artifactHashes`/`lastImplement`.
 8. Write the merged result back.
 
 **Read-only agents** (`ir-validator` when run standalone, `spec-coverage-checker`, `stm-drift-checker`, `pii-flow-checker`, `secret-scanner`) still update their specific sub-stages (5a, 5b, 5c, 5d) — they produce report files that have a definitive pass/fail verdict.
 
-It does **not** apply to read-only prompts (`/ir-diff`, `/visualize`, `/drift-check` when run in report-only mode) or utility agents that don't produce integration artifacts (`prd-author`, `domain-architect`, `target-architecture`).
+It does **not** apply to read-only prompts (`/ir-diff`, `/visualize`, `/drift-check`, `/analyze`, `/idd` when run in report-only mode) or utility agents that don't produce stage-model integration artifacts (`prd-author`, `domain-architect`, `target-architecture`, `solution-design-author`).
 
 ## Stage ownership map
 
@@ -50,7 +51,7 @@ It does **not** apply to read-only prompts (`/ir-diff`, `/visualize`, `/drift-ch
 | `flow-tester` | `6a` | `done` (failed=0) or `blocked` |
 | `planner` | `8` | `done` or `blocked` (plan-blocked.md produced) |
 | `task-decomposer` | `9` | `done` |
-| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | `10` | `done` (M/N flows) or `blocked` |
+| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-dataverse-binder`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | `10` | `done` (M/N flows) or `blocked` |
 | `azure-workflow-tester` | `11` | `done` |
 
 ## Resolving the integration folder
@@ -204,8 +205,9 @@ Populate from the produced reports. Use `null` (not `0`) when a report has not b
   "generatedAt": "<ISO-8601 UTC>",
   "refreshedBy": "<slash-command that wrote this file, e.g. /review>",
   "activePlatform": "<pack-name or null>",
+  "lifecycle": "generate | post-implementation",
   "stages": [
-    { "id": "0",  "name": "Inventory",     "status": "done|missing|blocked|covered|stale", "summary": "..." }
+    { "id": "0",  "name": "Inventory",     "status": "done|missing|blocked|covered|stale", "frozen": false, "summary": "..." }
   ],
   "counts": { },
   "staleness": [
@@ -222,6 +224,8 @@ Populate from the produced reports. Use `null` (not `0`) when a report has not b
 `staleness` is an array (possibly empty). Each entry names a stage whose primary artifact is older than at least one upstream source, names the upstream, and gives a one-sentence reason that the visualizer / `/next` can quote verbatim.
 
 `refreshedBy` is the literal slash-command name (with leading `/`) of the prompt performing the refresh. The visualizer displays it in the Migration Status panel footer so users can see at a glance which command last touched the file.
+
+`lifecycle` (`generate` by default, or absent) and the per-stage `frozen` flag are the **lifecycle-guard** fields (see `.claude/skills/lifecycle-guard/SKILL.md`). Only `/lifecycle` sets them; every other refresh (agent merge, `/status` rebuild, the background hook) **preserves** them. When `lifecycle == post-implementation`, the generative commands refuse to regenerate — edits go through `/change`.
 
 ### Richer e2e fields (optional)
 

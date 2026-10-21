@@ -171,7 +171,7 @@ For every `channels[]` entry:
 ### Phase 7 — dependency protocol coherence
 For every `dependencies[]` entry:
 - `streaming` is only valid on `kind: grpc`. Finding: `DEPENDENCY_STREAMING_ON_NON_GRPC` (Sev-2).
-- `idempotencyHeader`, `rateLimit`, and `circuitBreaker` are only valid on `kind: rest`. Finding: `DEPENDENCY_FIELD_KIND_MISMATCH` (Sev-2).
+- `idempotencyHeader`, `rateLimit`, `circuitBreaker`, and `product` are only valid on `kind: rest`. Finding: `DEPENDENCY_FIELD_KIND_MISMATCH` (Sev-2).
 - `driver` and `txBoundary` are only valid on `kind: db`. Finding: `DEPENDENCY_FIELD_KIND_MISMATCH` (Sev-2).
 - If `retry.count > 0` and `timeout` is absent, emit `DEPENDENCY_RETRY_WITHOUT_TIMEOUT` (Sev-2) — retries without a timeout budget can compound tail latency.
 

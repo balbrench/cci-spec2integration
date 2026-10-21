@@ -1296,6 +1296,10 @@
           "uniqueItems": true
         },
         "kind": { "enum": ["rest", "grpc", "queue", "topic", "db", "blob", "function"] },
+        "product": {
+          "description": "REST: the SaaS product behind the endpoint, when packs must bind product-specific connector semantics that the transport kind alone cannot express. 'dataverse' = Microsoft Dataverse / Dynamics 365 CE (OData Web API); packs emit the native Dataverse connector (ADF CommonDataServiceForApps, Logic Apps Dataverse) instead of a generic REST call. ir-validator rejects this field on non-rest dependencies.",
+          "enum": ["dataverse"]
+        },
         "contractRef": { "type": "string" },
         "timeout": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" },
         "retry": {

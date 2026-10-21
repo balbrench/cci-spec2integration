@@ -8,6 +8,7 @@ Invoke the `integration-architect` agent.
 
 Steps:
 1. Resolve the integration folder per the **Resolving the integration folder** rules in `.claude/skills/pipeline-status/SKILL.md` (explicit argument → active integration → sole candidate → ask), then **pin** the resolved folder as `activeIntegration` in `.spec2integration/state.json`.
+1a. **Lifecycle guard.** Apply `.claude/skills/lifecycle-guard/SKILL.md`: read `<folder>/status.json`, and if `lifecycle == post-implementation` or stage 5 (IR) is `frozen`, STOP and print the redirect block — regenerating `integration-ir.yaml` would overwrite a deployed, validated IR. Override only with `--force-regen` (prints the override warning, then continues). Use `/change` for targeted IR-driven edits on a frozen integration.
 2. Require `contracts/openapi.yaml`, `contracts/asyncapi.yaml`, and at least one schema in `contracts/schemas/` to exist. If any are missing, instruct the user to run `/contracts` first.
 3. Call the `integration-architect` agent with the folder path.
 4. After the agent writes `integration-ir.yaml`, validate it against `schemas/integration-ir.schema.json`. If invalid, report errors and stop without further action.

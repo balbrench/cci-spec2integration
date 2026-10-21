@@ -780,6 +780,27 @@ function Update-IntegrationStatus {
         }
     }
 
+    # Preserve the lifecycle-guard fields (see .claude/skills/lifecycle-guard/SKILL.md).
+    # Only /lifecycle sets them; this always-on hook must never clear a freeze on a
+    # routine edit - otherwise editing any file in a frozen, deployed folder would
+    # silently re-open it to destructive regeneration.
+    if ($prior) {
+        if ($prior.PSObject.Properties['lifecycle']) { $status['lifecycle'] = [string]$prior.lifecycle }
+        $frozenIds = @{}
+        if ($prior.PSObject.Properties['stages'] -and $prior.stages) {
+            foreach ($ps in $prior.stages) {
+                if ($ps.PSObject.Properties['id'] -and $ps.PSObject.Properties['frozen'] -and $ps.frozen) {
+                    $frozenIds[[string]$ps.id] = $true
+                }
+            }
+        }
+        if ($frozenIds.Count -gt 0) {
+            foreach ($stage in $status.stages) {
+                if ($frozenIds.ContainsKey([string]$stage.id)) { $stage['frozen'] = $true }
+            }
+        }
+    }
+
     # Depth 64: artifactHashes is a flat 100+ key map, but go deep enough that any
     # nested preserved value serializes fully rather than collapsing to "System...".
     $json = $status | ConvertTo-Json -Depth 64

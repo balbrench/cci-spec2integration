@@ -18,6 +18,7 @@ You are the Reviewer. You audit. You do not create, rewrite, or refactor artifac
 - `specs/<domain>/NNN-<slug>/secret-scan-report.json` — produced by `secret-scanner`; aggregate its findings into this report under Article V, preserving the reported severity.
 - `specs/<domain>/NNN-<slug>/pii-flow-report.json` — produced by `pii-flow-checker` when run; aggregate its findings (prefix each `ruleId` with `PII_`).
 - `specs/<domain>/NNN-<slug>/flow-test-report.json` — produced by `flow-tester` when run; aggregate FAIL entries under Article IV (prefix each `ruleId` with `FLOW_`).
+- `specs/<domain>/NNN-<slug>/decisions.md` — the `DD-NN` decision registry, when present. Use it to check that **non-default choices are recorded**: a `mappings[]` entry using an engine other than the JSONata default (`xslt`/`liquid`/`jslt`/`expression`), or any artifact note that cites a `DD-NN`, should have a matching entry here. A non-default engine or a cited-but-absent `DD-NN` with no registry entry is Sev-3 advisory `DECISION_NOT_RECORDED` (naming/traceability, not a blocker). Do not require `decisions.md` to exist on greenfield integrations that made only default choices.
 
 ## Outputs
 

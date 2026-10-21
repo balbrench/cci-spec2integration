@@ -52,7 +52,7 @@ Exactly one file: `specs/<domain>/NNN-<slug>/integration-ir.yaml`, validating ag
    - **Aggregator** when collecting N correlated messages.
 8. Write **errorHandling** at the top level (defaults) and override per flow only when justified. Every flow must end up with a retry policy and a DLQ channel in scope.
 9. Write **identity** (prefer `managedIdentity: system`) and **nonFunctionals** (copy from spec.md NFRs).
-10. Write **dependencies** - every outbound REST or queue in the contracts becomes an entry with a timeout.
+10. Write **dependencies** - every outbound REST or queue in the contracts becomes an entry with a timeout. When the spec names Microsoft Dataverse / Dynamics 365 CE as the target, write it as `kind: rest` + `product: dataverse` (see the **Dependency protocol detail** section of the `ir-authoring` skill) — without `product`, the Azure pack emits a generic REST call instead of the native Dataverse connector.
 11. Validate the file against the schema before writing. **Run `npx -y ajv-cli@5 validate -s schemas/integration-ir.schema.json -d <integration-folder>/integration-ir.yaml --spec=draft2020 --strict=false` via the `execute` tool.** If validation fails, fix and retry; do not emit an invalid IR. Also ensure the written YAML parses cleanly in a YAML 1.2-compatible loader (the IR viewer uses `js-yaml`). Manual structural inspection is not a substitute — record the ajv exit code in your final summary.
 
 ## Handling custom code (reverse-engineering path only)
