@@ -207,7 +207,25 @@ Press **F5** to launch an Extension Development Host. To exercise the launcher,
 run it with no folder open.
 
 - `npm run watch` — rebuild on change.
-- `npm run package` — produce a `.vsix` (runs the asset sync first).
+- `npm run package` — produce a `.vsix` (runs the asset sync first). Local
+  builds bundle the working tree as-is, uncommitted files included; use the
+  release workflow below for anything you distribute.
+
+## Release
+
+Releases are built by CI, not locally. Pushing a `v*` tag runs
+[`.github/workflows/release-extension.yml`](../../.github/workflows/release-extension.yml),
+which checks out the tagged commit, sets `package.json`'s version from the tag,
+syncs assets, packages `spec2integration-<version>.vsix`, and attaches it to a
+GitHub Release with generated notes:
+
+```bash
+git tag v1.0.4
+git push origin v1.0.4
+```
+
+It can also be run manually from the Actions tab; that builds the `.vsix` as a
+workflow artifact without publishing a Release.
 
 ## What it reads & writes
 

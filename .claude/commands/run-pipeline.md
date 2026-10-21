@@ -34,6 +34,7 @@ If `--unattended` is set, expand it before flag-handling into `--auto-accept-cla
 
 ## Pre-flight
 
+0. **Lifecycle guard.** If `--folder` was supplied and `<folder>/status.json` has `lifecycle == post-implementation` (or any generative stage is `frozen`), STOP per `.claude/skills/lifecycle-guard/SKILL.md` and print the redirect block — a full pipeline run regenerates everything from spec to platform artifacts, overwriting a deployed, validated integration. Override only with `--force-regen`. For targeted edits use `/change "<description>" <folder>`. (Fresh runs with no `--folder` create a new integration and are never guarded.)
 1. **Platform pack.** If `.spec2integration/state.json` is missing or its `activePlatform` field is empty, run `/platform <--platform || azure>`. If that prompt fails (pack not installed), stop and surface its error verbatim.
 2. **Folder resolution.**
    - If `--folder` was supplied: use it. Read `<folder>/status.json` if present to determine the resume point (see "Resume semantics" below).

@@ -8,9 +8,9 @@ All agents, commands, and skills live directly under `.claude/`, which Claude Co
 
 | Tree | Contents |
 |---|---|
-| [.claude/agents/](.claude/agents/) | 35 agents grouped by prefix: unprefixed (core, platform-neutral), `biztalk-*` (BizTalk reverse engineering), `azure-*` (Azure target platform). |
-| [.claude/commands/](.claude/commands/) | 27 slash commands. |
-| [.claude/skills/](.claude/skills/) | 34 skills covering EIP patterns, IR authoring, platform-specific layouts and decision tables. |
+| [.claude/agents/](.claude/agents/) | 37 agents grouped by prefix: unprefixed (core, platform-neutral), `biztalk-*` (BizTalk reverse engineering), `azure-*` (Azure target platform). |
+| [.claude/commands/](.claude/commands/) | 31 slash commands. |
+| [.claude/skills/](.claude/skills/) | 36 skills covering EIP patterns, IR authoring, platform-specific layouts and decision tables. |
 
 The naming convention is the only grouping — there are no plugin boundaries. New platform support (AWS, MuleSoft, etc.) is added by dropping `<plat>-*` agents, commands, and skills directly into the same folders. See [docs/platform-pack-guide.md](docs/platform-pack-guide.md).
 
@@ -48,8 +48,9 @@ Type `/` to see the slash-command surface. Commands fall into five intents:
 
 - **Guided** — orchestrate multiple stages: [`/run-pipeline`](.claude/commands/run-pipeline.md), [`/prepare-for-implementation`](.claude/commands/prepare-for-implementation.md), [`/biztalk-reverse-engineer`](.claude/commands/biztalk-reverse-engineer.md). Start here.
 - **Manual** — advance one stage at a time: `/specify`, `/clarify`, `/model`, `/contracts`, `/map`, `/architect`, `/plan`, `/tasks`, `/implement-azure`, `/deploy-azure`.
-- **Reporting** — explain current state without advancing: `/next`, `/status`, `/visualize`, `/ir-diff`, `/drift-check`, `/use`.
+- **Reporting** — explain current state without advancing: `/next`, `/status`, `/visualize`, `/ir-diff`, `/drift-check`, `/analyze`, `/idd`, `/use`.
 - **Recovery** — unblock a failed stage: `/review`, `/platform`, `/test-mappings`, `/test-flows`, `/test-azure`.
+- **Maintenance** — change a *deployed* integration without regenerating it: `/change` (targeted delta via the right platform agent), `/lifecycle` (freeze/unfreeze the folder so generative commands can't overwrite live artifacts). See **Lifecycle / maintenance phase** below.
 - **Advanced** — specialist utilities: `/domain`.
 
 Default opening moves:
@@ -62,17 +63,17 @@ Default opening moves:
 
 ## Agents
 
-Agents are invoked exclusively via the `Agent` tool with `subagent_type: <agent-name>`. Slash commands call them; you should not need to call them directly. All 35 live in [.claude/agents/](.claude/agents/), namespaced by prefix:
+Agents are invoked exclusively via the `Agent` tool with `subagent_type: <agent-name>`. Slash commands call them; you should not need to call them directly. All 37 live in [.claude/agents/](.claude/agents/), namespaced by prefix:
 
 | Prefix | Agents |
 |---|---|
-| (none) — core, platform-neutral | clarifier, contract-designer, contract-linter, domain-architect, domain-modeler, flow-tester, integration-architect, ir-validator, mapping-designer, mapping-tester, pii-flow-checker, planner, prd-author, requirements-analyst, reviewer, secret-scanner, spec-coverage-checker, stm-drift-checker, target-architecture, task-decomposer |
+| (none) — core, platform-neutral | clarifier, contract-designer, contract-linter, domain-architect, domain-modeler, flow-tester, integration-architect, ir-validator, mapping-designer, mapping-tester, pii-flow-checker, planner, prd-author, requirements-analyst, reviewer, secret-scanner, solution-design-author, spec-coverage-checker, stm-drift-checker, target-architecture, task-decomposer |
 | `biztalk-` — brownfield intake | biztalk-contract-extractor, biztalk-inventory, biztalk-ir-compiler, biztalk-msi-cracker, biztalk-spec-author |
-| `azure-` — Azure target platform | azure-bicep-author, azure-cicd-author, azure-connections-binder, azure-data-factory-compiler, azure-functions-compiler, azure-local-functions-author, azure-logic-apps-compiler, azure-reviewer, azure-sql-schema-author, azure-workflow-tester |
+| `azure-` — Azure target platform | azure-bicep-author, azure-cicd-author, azure-connections-binder, azure-data-factory-compiler, azure-dataverse-binder, azure-functions-compiler, azure-local-functions-author, azure-logic-apps-compiler, azure-reviewer, azure-sql-schema-author, azure-workflow-tester |
 
 ### Skill preloading
 
-Reference-heavy compilers (`azure-logic-apps-compiler`, `azure-connections-binder`, `azure-bicep-author`, `azure-functions-compiler`, `azure-workflow-tester`, and the `biztalk-*` compilers) declare their **always-needed authoritative skills** in a `skills:` frontmatter list. Those skills' `SKILL.md` instructions are injected into the agent's context at startup — making the load **deterministic** rather than dependent on the model choosing to read them, which directly hardens failure modes like emitting a guessed `operationId`/`serviceProviderId`. The bundled `reference/` files inside each skill still load on demand. Only always-needed skills are preloaded; per-channel / per-format / per-host skills (e.g. `edi-x12`, `service-bus`, `biztalk-decompilation`) remain listed in the agent's `## Inputs` prose and are read on demand when the relevant condition applies.
+Reference-heavy compilers (`azure-logic-apps-compiler`, `azure-connections-binder`, `azure-bicep-author`, `azure-functions-compiler`, `azure-dataverse-binder`, `azure-workflow-tester`, and the `biztalk-*` compilers) declare their **always-needed authoritative skills** in a `skills:` frontmatter list. Those skills' `SKILL.md` instructions are injected into the agent's context at startup — making the load **deterministic** rather than dependent on the model choosing to read them, which directly hardens failure modes like emitting a guessed `operationId`/`serviceProviderId`. The bundled `reference/` files inside each skill still load on demand. Only always-needed skills are preloaded; per-channel / per-format / per-host skills (e.g. `edi-x12`, `service-bus`, `biztalk-decompilation`) remain listed in the agent's `## Inputs` prose and are read on demand when the relevant condition applies.
 
 ## Status refresh contract
 
@@ -97,7 +98,7 @@ Agents that must refresh `status.json`:
 | `flow-tester` | 6a (Flow tests) |
 | `planner` | 8 (Plan) |
 | `task-decomposer` | 9 (Tasks) |
-| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-sql-schema-author`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | 10 (Implement) |
+| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-dataverse-binder`, `azure-sql-schema-author`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | 10 (Implement) |
 | `azure-workflow-tester` | 11 (Tests) |
 
 **How to update:** read the existing `status.json`, merge only the stage rows this agent owns (preserving all other keys including `artifactHashes` and `lastImplement`), and write it back. Never overwrite the full file from scratch unless the file doesn't exist yet.
@@ -107,6 +108,19 @@ Agents that must refresh `status.json`:
 The orchestrating slash command may do a final full `/status`-style re-probe after all agents complete, but it is no longer the primary owner. Read-only commands (`/status`, `/ir-diff`, `/visualize`, `/drift-check`) are exempt. `/status` remains the on-demand full rebuild.
 
 A `PostToolUse` hook (`Write|Edit`) backs this up automatically — `scripts/refresh-status.ps1`, wired in the `hooks` block of `.claude/settings.json`, rebuilds `status.json` after any edit inside an integration folder (tagged `refreshedBy: auto:postwrite-hook`). The hook also computes **mtime-based staleness**: because it runs on every edit with full filesystem access, it is the always-on staleness probe the Bash-less slash commands can't run — editing an upstream artifact flips its downstream stages to `stale` and repoints `next` at the rebuild, surfaced on the next `/next`, `/status`, or visualizer read without a manual probe. Slash commands still perform the authoritative refresh with their own name as the final step; the hook is the safety net. To opt out, remove the `hooks` block from `.claude/settings.json`.
+
+## Lifecycle / maintenance phase
+
+The pipeline is excellent at **greenfield generation** — PRD to deployed artifacts in one forward pass. But an integration does not stay in that phase. Once its platform artifacts are deployed and validated, the generated files (ADF JSON, `workflow.json`, SQL, Bicep, connections) become the **source of truth**, and the spec/IR/contracts become *reference documents* that describe intent, not the current code. Re-running a generative command then silently overwrites live, validated work — the highest-severity failure mode this framework has.
+
+That phase is now a **first-class, enforced concept**, not a prose warning in a solution's `CLAUDE.md`:
+
+- **Freeze model.** `status.json` carries a top-level `lifecycle` (`generate` → `post-implementation`) and a per-stage `frozen` flag. Set them with [`/lifecycle freeze <folder>`](.claude/commands/lifecycle.md) once an integration is deployed. See [.claude/skills/lifecycle-guard/SKILL.md](.claude/skills/lifecycle-guard/SKILL.md).
+- **Guarded commands.** `/specify`, `/model`, `/contracts`, `/map`, `/architect`, `/implement-azure`, `/run-pipeline`, and `/prepare-for-implementation` run the lifecycle guard after resolving the folder: on a frozen integration they **refuse** and print a redirect to `/change`, unless the deliberate `--force-regen` override is passed.
+- **Targeted edits.** [`/change "<description>" <folder>`](.claude/commands/change.md) is the maintenance path: it reads the specific deployed artifact, routes the change to the agent that owns that format (`azure-data-factory-compiler`, `azure-sql-schema-author`, `azure-bicep-author`, `azure-cicd-author`, `azure-connections-binder`, `azure-dataverse-binder`, …), makes the minimal edit, records a `DD-NN` entry in `decisions.md`, and re-baselines `artifactHashes` so `/drift-check` stays honest. It never regenerates sibling artifacts.
+- **Consistency & docs.** [`/analyze`](.claude/commands/analyze.md) emits one read-only cross-artifact conflict report (uncovered requirements, orphan tasks, drift, staleness). [`/idd`](.claude/commands/idd.md) renders the IR + contracts + `decisions.md` into a client-facing Solution Design Document that never drifts by hand.
+
+The `lifecycle` and `frozen` fields are per-integration **derived control state** in `status.json` (alongside `artifactHashes`/`lastImplement`), so they do not violate Article VIII. Every refresh preserves them; only `/lifecycle` changes them.
 
 ## Tool usage
 
@@ -122,9 +136,9 @@ spec2integration/
 ├── CLAUDE.md                    # this file
 ├── .claude/
 │   ├── settings.json            # permissions + hooks
-│   ├── agents/                  # 35 agents (core, biztalk-*, azure-*)
-│   ├── commands/                # 27 slash commands
-│   └── skills/                  # 34 skills
+│   ├── agents/                  # 37 agents (core, biztalk-*, azure-*)
+│   ├── commands/                # 31 slash commands
+│   └── skills/                  # 36 skills
 ├── schemas/                     # IR and domain JSON Schemas (see schemas/CLAUDE.md)
 ├── templates/                   # skeleton artifacts (see templates/CLAUDE.md)
 ├── src/pipeline/FlowTester/     # .NET 8 deterministic flow-test runner

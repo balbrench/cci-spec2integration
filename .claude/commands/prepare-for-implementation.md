@@ -23,6 +23,7 @@ If the folder cannot be resolved, stop with: `No integration folder found. Run /
 1. Resolve the integration folder.
    - If `$ARGUMENTS` contains a directory, use it.
    - Else resolve the most recently modified `specs/*/*/` folder containing `spec.md`.
+   - **Lifecycle guard.** Apply `.claude/skills/lifecycle-guard/SKILL.md`: read `<folder>/status.json`, and if `lifecycle == post-implementation` or stage 8 (Plan) / 9 (Tasks) is `frozen`, STOP and print the redirect block — this chain re-runs `/review`, `/plan`, and `/tasks`, regenerating `plan.md` and `tasks.md` for a deployed integration. Override only with `--force-regen`; use `/change` for targeted edits.
 
 2. Resolve the platform pack.
    - If `--platform <pack>` was supplied, use that value.

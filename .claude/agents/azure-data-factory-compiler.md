@@ -37,6 +37,7 @@ Conditionally:
 
 - `.claude/skills/biztalk-to-azure-mapping/SKILL.md` — when the IR was produced by `biztalk-ir-compiler`.
 - `.claude/skills/biztalk-decompilation/SKILL.md` — when source mapping logic exists only in compiled BizTalk maps. Decompile XSLT FIRST, then convert to a Mapping Data Flow or Stored Procedure equivalent.
+- `.claude/skills/dataverse-365ce/SKILL.md` — when any dependency is `kind: rest` with `product: dataverse`. Emit the `CommonDataServiceForApps` linked service, sink dataset, and a sink whose write method matches the activity (§2: a Copy sink takes only `writeBehavior: "Upsert"`; a Mapping Data Flow sink inserts by default and needs an `alterRow` for update / upsert / delete). `azure-dataverse-binder` refines the Dataverse-specific details afterwards.
 
 ## Output layout
 
@@ -92,7 +93,7 @@ For each flow F where `implementation.host == data-factory`:
 
 3. **Emit linked services.** For every distinct dependency / channel binding the flow touches:
 
-   - Use the connector type from the dependency `kind` (`sql` → `AzureSqlDatabase`, `blob` / `adls` → `AzureBlobStorage` / `AzureBlobFS`, `salesforce` → `Salesforce`, `rest` → `RestService`, `cosmos` → `CosmosDb`, `oracle` → `OracleDatabaseV2`, etc.).
+   - Use the connector type from the dependency `kind` (`sql` → `AzureSqlDatabase`, `blob` / `adls` → `AzureBlobStorage` / `AzureBlobFS`, `salesforce` → `Salesforce`, `rest` → `RestService`, `cosmos` → `CosmosDb`, `oracle` → `OracleDatabaseV2`, etc.). **Exception:** `rest` with `product: dataverse` → `CommonDataServiceForApps` (never `RestService`) — Dataverse write semantics (per-activity write methods, alternate keys, lookup binding) are not expressible through a generic REST sink. Auth is `AADServicePrincipal` with `ServicePrincipalKey` from Key Vault, or `ManagedIdentity` with a **user-assigned** identity credential; never add `tenantId`, never use `Office365` auth or the system-assigned identity (`dataverse-365ce` §1).
    - Authenticate with **managed identity** wherever the connector supports it (`servicePrincipalId` / `tenant` for AAD, `userMI` / `systemMI` for Storage and SQL). Connection strings, account keys, and SAS tokens inline are Sev-1.
    - Reference Key Vault for any secret a connector cannot resolve via MI (`AzureKeyVaultSecret` reference type) — the actual secret value is never written into the JSON.
 

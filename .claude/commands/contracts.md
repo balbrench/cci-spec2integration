@@ -6,6 +6,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Agent
 
 Steps:
 1. Resolve the integration folder per the **Resolving the integration folder** rules in `.claude/skills/pipeline-status/SKILL.md` (explicit argument → active integration → sole candidate → ask), then **pin** the resolved folder as `activeIntegration` in `.spec2integration/state.json`.
+1a. **Lifecycle guard.** Apply `.claude/skills/lifecycle-guard/SKILL.md`: read `<folder>/status.json`, and if `lifecycle == post-implementation` or stage 3 (Contracts) is `frozen`, STOP and print the redirect block — regenerating the OpenAPI/AsyncAPI/JSON Schema contracts would overwrite the current contracts. Override only with `--force-regen`. Use `/change` for targeted contract edits on a frozen integration.
 2. Require `data-model.md` to exist. If not, instruct the user to run `/model` first.
 3. Call the `contract-designer` agent with the folder path.
 4. Call the `contract-linter` agent with the integration folder path as a final validation step. If it returns `BLOCKED`, print its Sev-1 findings — contracts must pass linting before the pipeline continues.

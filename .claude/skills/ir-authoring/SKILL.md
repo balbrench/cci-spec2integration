@@ -164,7 +164,7 @@ Before handing off to `planner`:
 - [ ] Every `resequencer` sets both `orderingKey` and `window`.
 - [ ] Every topic `subscription.filter.kind: sql` uses an expression the target broker supports (or the pack is prepared to emit a Sev-2 "feature not supported" finding).
 - [ ] Every inbound queue/topic that needs a consumer pool declares `consumer.count`; use `subscription.filter` before `consumer.selector` when the broker can evaluate server-side.
-- [ ] Every dependency's protocol-specific fields match its `kind` (grpc → `streaming`; rest → `idempotencyHeader`/`rateLimit`/`circuitBreaker`; db → `driver`/`txBoundary`).
+- [ ] Every dependency's protocol-specific fields match its `kind` (grpc → `streaming`; rest → `idempotencyHeader`/`rateLimit`/`circuitBreaker`/`product`; db → `driver`/`txBoundary`).
 - [ ] Every inbound HTTP endpoint in `endpoints[]` declares `method`, `path`, `requestBody.messageRef`, at least one entry in `responses`, and any header/query parameters; `ir-validator` fails on divergence with the generated OpenAPI.
 - [ ] Every endpoint that needs idempotent-POST semantics declares `idempotencyHeader` (and the bound channel's message carries `idempotencyKey`).
 - [ ] Every `flows[]` whose trigger message carries `correlationId` declares at least one matching `tracked[]` entry (Article IV).
@@ -340,9 +340,18 @@ dependencies:
     driver: postgres
     txBoundary: perFlow          # perCall | perFlow
     timeout: PT2S
+
+  - name: CrmDataverse
+    kind: rest
+    product: dataverse           # Microsoft Dataverse / Dynamics 365 CE
+    contractRef: contracts/openapi-crm.yaml
+    timeout: PT30S
+    retry: { policy: exponential, count: 3, interval: PT5S }
 ```
 
 Packs propagate `idempotencyHeader` from the message's `idempotencyKey` on every call, and compile `circuitBreaker` into the platform's native breaker (Polly, Hystrix, Istio retry budget, etc.).
+
+`product` names the SaaS product behind a `kind: rest` endpoint, for the cases where a pack must use a product-native connector rather than a generic REST call. `kind` stays the transport; `product` adds the semantics. Set `product: dataverse` whenever the spec names Microsoft Dataverse, Dynamics 365 CE / CRM, or the Power Platform data store as a target or source — Dataverse is an OData Web API underneath, but its write methods, alternate keys, and lookup binding differ by host, so the Azure pack emits the native Dataverse connector and routes it to `azure-dataverse-binder` (see `.claude/skills/dataverse-365ce/SKILL.md`). Omit `product` for any other REST dependency. Valid only on `kind: rest`.
 
 ## Endpoints, flow tests, and observability (Phase 8)
 
