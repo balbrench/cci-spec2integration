@@ -50,7 +50,7 @@ Run these checks before linting. The linter must prefer ephemeral `npx` executio
 |---|---|---|---|
 | Node / npx runtime | `npx --version` | `NPX_MISSING` | Sev-1 |
 | Spectral bootstrap | `npx -y @stoplight/spectral-cli --version` | `SPECTRAL_BOOTSTRAP_FAILED` | Sev-1 |
-| ajv bootstrap | `npx -y ajv-cli@5 help` | `AJV_BOOTSTRAP_FAILED` | Sev-1 |
+| ajv bootstrap | `npx -y -p ajv-cli@5 -p ajv-formats ajv help` | `AJV_BOOTSTRAP_FAILED` | Sev-1 |
 | pact (optional) | `pact --version` | `PACT_MISSING` | Sev-2 (skip step 6) |
 
 Finding message templates:
@@ -58,7 +58,7 @@ Finding message templates:
 - Optional pact failure: `"contract-linter not executed — <tool> not found. Install with: <install-command>"`
 
 Install hints:
-- Preferred execution path: `npx -y @stoplight/spectral-cli ...` and `npx -y ajv-cli@5 ...`
+- Preferred execution path: `npx -y @stoplight/spectral-cli ...` and `npx -y -p ajv-cli@5 -p ajv-formats ajv ...`
 - Optional global Spectral install: `npm install -g @stoplight/spectral-cli`
 - Optional global ajv install: `npm install -g ajv-cli`
 - pact (optional): `npm install -g @pact-foundation/pact-cli`
@@ -91,11 +91,17 @@ Same ruleset resolution and severity mapping as OpenAPI. Pass `--format json` to
 
 ## Validation: JSON Schema
 
+Compile each schema file on its own, with the `ajv-formats` plugin loaded so `format` keywords (`uri`, `uuid`, `date-time`, `duration`, …) are actually checked:
+
 ```bash
-npx -y ajv-cli@5 compile -s <schema-file> -r <integration-folder>/contracts/schemas/*.json --spec=draft2020 --strict=false
+npx -y -p ajv-cli@5 -p ajv-formats ajv compile -s <schema-file> -c ajv-formats --spec=draft2020 --strict=false
 ```
 
-Any compilation error is Sev-1 `SCHEMA_COMPILE_ERROR`.
+- `-c ajv-formats` only works when the plugin is installed next to ajv-cli, which is what the two `-p` flags do. Plain `npx -y ajv-cli@5 … -c ajv-formats` fails with "module not found".
+- Add `-r <file>` **only** for the sibling schema files that `<schema-file>` actually references through a cross-file `$ref`. Do not pass `-r contracts/schemas/*.json` wholesale: the schemas deliberately carry no `$id`, so ajv registers every sibling under the empty id and aborts with `schema with key or id "" already exists`. That error is a tooling artefact, never a `SCHEMA_COMPILE_ERROR`.
+- When validating example fixtures against a schema, use the same invocation with `validate -s <schema-file> -d <fixture>`.
+
+Any real compilation error is Sev-1 `SCHEMA_COMPILE_ERROR`.
 
 Scenario override:
 - In **brownfield / migration mode**, a compile failure caused by a preserved source-contract shape should still be surfaced, but the preferred remediation is to improve the linter's resolution strategy or compatibility shims rather than rewriting the preserved contract semantics.

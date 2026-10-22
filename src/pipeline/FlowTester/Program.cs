@@ -44,7 +44,7 @@ internal static class FlowTesterProgram
         {
             var blockedReport = CreateBlockedReport(
                 "RUNTIME_MISSING",
-                "flow tests not executed — node or jsonata package not on PATH. Install Node.js and run `npm install -g jsonata` then retry.");
+                "flow tests not executed — node or the jsonata package could not be found. Install Node.js and jsonata (`npm install -g jsonata` or `npm install jsonata` in the repo), then retry.");
 
             await WriteReportsAsync(integrationFolder, blockedReport);
             PrintSummary(blockedReport);
@@ -757,6 +757,7 @@ internal sealed class JsonataEvaluator
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            NodeEnvironment.Apply(startInfo);
 
             using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("failed to start node process.");
             var stdout = await process.StandardOutput.ReadToEndAsync();
@@ -915,6 +916,58 @@ internal static class MarkdownReportWriter
     private static string EscapeCell(string value) => value.Replace("|", "\\|");
 }
 
+// Node's require() does not search the global npm folder, so a jsonata
+// installed with `npm install -g jsonata` is invisible to child node
+// processes. Append `npm root -g` to NODE_PATH; a local node_modules still
+// wins because require() checks it before NODE_PATH.
+internal static class NodeEnvironment
+{
+    private static readonly Lazy<string?> GlobalRoot = new(ResolveGlobalRoot);
+
+    public static void Apply(ProcessStartInfo startInfo)
+    {
+        var globalRoot = GlobalRoot.Value;
+        if (string.IsNullOrEmpty(globalRoot))
+        {
+            return;
+        }
+
+        var existing = Environment.GetEnvironmentVariable("NODE_PATH");
+        startInfo.Environment["NODE_PATH"] = string.IsNullOrEmpty(existing)
+            ? globalRoot
+            : existing + Path.PathSeparator + globalRoot;
+    }
+
+    private static string? ResolveGlobalRoot()
+    {
+        try
+        {
+            // npm is a .cmd shim on Windows, which Process.Start cannot launch directly.
+            var startInfo = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo("cmd.exe") { ArgumentList = { "/c", "npm", "root", "-g" } }
+                : new ProcessStartInfo("npm") { ArgumentList = { "root", "-g" } };
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.UseShellExecute = false;
+            startInfo.CreateNoWindow = true;
+
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                return null;
+            }
+
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit(10_000);
+            return process.ExitCode == 0 && Directory.Exists(output) ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+
 internal sealed class RuntimePrerequisite
 {
     public bool Success { get; private init; }
@@ -944,6 +997,10 @@ internal sealed class RuntimePrerequisite
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            if (fileName == "node")
+            {
+                NodeEnvironment.Apply(startInfo);
+            }
 
             using var process = Process.Start(startInfo);
             if (process is null)

@@ -77,7 +77,7 @@ Walk the IR and check that every "feature-bearing" construct has at least one FR
 | IR construct | What it means | Backing required from |
 |---|---|---|
 | `flows[]` entry | A complete integration flow exists | At least one FR mentioning the flow's purpose, channel, or message |
-| `mappings[]` entry | A transformation exists | At least one FR with "transform / map / convert / produce" verbs and source+target message names |
+| `mappings[]` entry | A transformation exists | At least one FR or NFR that (a) names the mapping's source **or** target message — in an EARS FR this is usually the response clause ("THE SYSTEM SHALL return a PaymentRequestStatus …", "… publish an OutcomeNotification"), with no transform verb needed; or (b) uses "transform / map / convert / produce" with the source and target message names; or (c) is cited by id (`FR-N` / `NFR-N`) in the mapping's `description` or rationale and exists in spec.md |
 | `dependencies[]` entry with `migrationHint: custom-code` or `external-io` | Custom code or external I/O is required | At least one FR or NFR (e.g. NFR-11 scripting fidelity) |
 | `channels[].binding.wireFormat: flat-file` (or `format: flat-file` on bound message) | Flat-file decode is required | At least one FR mentioning flat-file / fixed-width / delimited |
 | `flows[].errorHandling.dlq` with a non-default channel | A DLQ exists | At least one FR or NFR mentioning DLQ, dead-letter, error sink, or poison-message handling |
@@ -97,12 +97,12 @@ Each rule is a regex over the requirement `text` plus an IR resolver. Apply rule
 | `R-TRANSFORM` | `\btransform\|\bmap\b\|convert.*to\b` with two `\b[A-Z][A-Za-z]+\b` capitalised tokens | `mappings[]` entry exists with `source.messageRef` or `target.messageRef` matching either token |
 | `R-RETRY` | `retry\|transient.*fail` | Flow whose channel topic matches has `errorHandling.retry` |
 | `R-DLQ` | `dead.?letter\|DLQ\|poison.*message\|error sink` | Some `flows[].errorHandling.dlq.channel` is set |
-| `R-IDEMPOTENT` | `idempotent\|duplicate.*submission\|deduplic` | Bound inbound message has `idempotencyKey` set |
+| `R-IDEMPOTENT` | `idempoten\|duplicate\|deduplic\|repeats? .*(id\|key)\b` | Bound inbound message has `idempotencyKey` set |
 | `R-CORRELATION` | `correlation.*id\|trace.*end-to-end` | At least one `flows[].tracked[]` entry whose `source` mentions `correlationId` |
 | `R-FLATFILE` | `flat.?file\|fixed.?width\|delimited` | Some channel binding has `wireFormat: flat-file` OR some message has `format: flat-file` |
 | `R-XSLT-FIDELITY` | `userCSharp\|scripting.*functoid\|inline.*script\|byte-?identical` | Some mapping has `engine: xslt` AND a `dependencies[]` helper for the same map |
 | `R-FTP` | `\bFTP\b\|SFTP` | Some channel has `binding.protocol: ftp` or `binding.protocol: sftp` |
-| `R-HTTP` | `\bHTTP\b\|REST\|webhook\|API endpoint` | Some channel has `kind: http` |
+| `R-HTTP` | `\bHTTP\b\|\bREST\b\|webhook\|API endpoint` | Some channel has `kind: http` |
 | `R-SOAP` | `\bSOAP\b\|WCF\|WS-` | Some channel has `binding.protocol: soap` or `binding.protocol: wcf` |
 | `R-SERVICEBUS` | `service bus\|JMS\|queue\|topic` | Some channel has `kind: queue` or `kind: topic` |
 | `R-RETENTION` | `retain\|retention\|keep.*for\|hold.*for` | Bound channel has `retention` set |

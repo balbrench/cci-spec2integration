@@ -42,11 +42,12 @@ Two files, always produced:
 The interpreter reuses the JSONata runtime shipped with `mapping-tester`:
 
 ```bash
-node --version && node -e "require('jsonata')"
+node --version && { node -e "require('jsonata')" 2>/dev/null || NODE_PATH="$(npm root -g)" node -e "require('jsonata')"; }
 ```
+Node's `require()` does not search the global npm folder, so a globally installed jsonata (`npm install -g jsonata`) is only found with `NODE_PATH` pointing at `npm root -g`. When the second form of the check is the one that succeeds, run **every** later `node` command in this run (the FlowTester binary sets this itself) with `NODE_PATH="$(npm root -g)"` set as well.
 
 If either command fails, emit a single Sev-1 `RUNTIME_MISSING`:
-> "flow tests not executed — node or jsonata package not on PATH. Install Node.js and run `npm install -g jsonata` then retry."
+> "flow tests not executed — node or the jsonata package could not be found, even with NODE_PATH set to `npm root -g`. Install Node.js and jsonata (`npm install -g jsonata` or `npm install jsonata` in the repo), then retry."
 
 ## Step semantics (interpreter contract)
 
