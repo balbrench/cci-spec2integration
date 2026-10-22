@@ -81,6 +81,7 @@ If `ajv-cli` isn't available, hand the schema and the IR draft to a JSON-Schema 
 - One trigger per flow.
 - Steps form a DAG; cycles are invalid.
 - Every branch path must eventually reach either a `send` or a terminal step with no `next`.
+- **Control flow is explicit.** A step with no `next`, no `routes`, and no `targets[]` is terminal — its branch ends there. Array order never implies sequence: control flow comes only from `next`, `routes[].next`, `targets[]`, `errorHandling.fallback`, and saga `children[]`. Give every step that should continue a `next`, including in a simple linear flow; a step left without one ends its branch.
 - `errorHandling` at the top level sets defaults; override per flow only when justified in a trailing `# rationale:` comment.
 - Prefer `managedIdentity: system` unless multiple apps share identity.
 

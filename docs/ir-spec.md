@@ -493,6 +493,8 @@ flows:
 
 `implementation` is set by the `target-architecture` agent (or hand-authored in the IR) and consumed by `/implement-azure`. When the field is omitted, the Azure pack defaults to `logic-app-standard`. `ir-validator` rejects `data-factory` for HTTP-triggered or sync-reply flows because ADF is fundamentally bulk data movement.
 
+**Control flow is explicit.** A step runs after another only when a link points at it: `next`, `routes[].next`, `targets[]` (`recipientList`, `scatterGather`), `errorHandling.fallback`, or saga `children[]`. The order of `steps[]` never implies sequence. A step with no `next`, no `routes`, and no `targets[]` is **terminal**: its branch ends there, wherever it sits in the array. A linear flow therefore sets `next` on every step except the last, and a flow with several branch ends (for example one HTTP reply per outcome) simply leaves each branch's last step without `next`. `ir-validator`, the FlowTester, the visualizer, and every platform compiler apply this rule.
+
 Supported node types (mirrors Hohpe EIP):
 
 | Type           | Purpose                                                         |

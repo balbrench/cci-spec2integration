@@ -990,7 +990,10 @@
         "dependency": { "type": "string" },
         "timeout": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" },
         "retryRef": { "type": "string" },
-        "next": { "type": "string" },
+        "next": {
+          "description": "Id of the step that runs after this one, in the same flow. A step with no next, no routes, and no targets[] is terminal — its branch ends there. Array order never implies sequence: control flow comes only from next, routes[].next, targets[], errorHandling.fallback, and saga children[].",
+          "type": "string"
+        },
         "routes": {
           "type": "array",
           "items": {

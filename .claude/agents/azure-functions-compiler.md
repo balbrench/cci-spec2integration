@@ -99,7 +99,7 @@ For each flow F where `implementation.host == function-app`:
    - `chaining`, `fan-out-fan-in`, `aggregator`, `monitor`, `async-http`, `human-interaction`.
    - The trigger function becomes a starter (`[DurableClient]` + `await client.ScheduleNewOrchestrationInstanceAsync(...)`), the orchestrator owns the EIP-step graph, and each `invoke` / `transform` step becomes an `[Function]` activity. Activities receive POCOs from `Models/`.
 
-4. **Translate steps in order.** Walk `flows[F].steps[]`:
+4. **Translate steps along the control-flow graph.** Start at the flow's first step and follow `next`, `routes[].next`, and `targets[]` (and `errorHandling.fallback` for failure paths). Never fall through to the next entry in `steps[]`: a step with no `next`, `routes`, or `targets[]` ends its branch, so the generated code returns (or completes the orchestration branch) there. Translate each step:
 
    | IR step type | Functions construct |
    |---|---|

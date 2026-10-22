@@ -279,13 +279,13 @@ For every `flows[]` entry, build the step-control-flow graph:
 
 - **Nodes**: every `flows[].steps[].id`.
 - **Edges**:
-  - From `steps[i]` to `steps[i+1]` when `steps[i]` has no `next` and no `routes` — array order is implicit fallthrough.
   - From `steps[i]` to the step named by `next` when `next` is set.
   - From `steps[i]` to every `routes[].next` target when `routes` is set.
+  - From `steps[i]` to every id in `targets[]` for `type: recipientList` and `type: scatterGather` steps.
   - From `steps[i]` to the step named by `errorHandling.fallback` when set.
   - For `type: saga` steps: from the saga step to every `children[].forward` AND every `children[].compensate`.
 
-When `next` and `routes` are both absent and there is no next sibling in the array, the step is terminal (control returns to the runtime). That is normal — terminal nodes are not "unreachable".
+**Array order never creates an edge.** A step with no `next`, no `routes`, and no `targets[]` is **terminal**: its branch ends there and control returns to the runtime, wherever the step sits in the array. This is the same rule the `ir-authoring` skill, the FlowTester, the visualizer, and the platform compilers follow. Terminal nodes are normal, not "unreachable". A flow written as if steps ran in array order, with no `next` links, surfaces here as `STEP_UNREACHABLE` on the steps that nothing points to — which is the intended signal to add the missing `next`.
 
 #### Cycle detection
 
