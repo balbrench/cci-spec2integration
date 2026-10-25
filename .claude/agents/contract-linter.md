@@ -106,8 +106,6 @@ Any real compilation error is Sev-1 `SCHEMA_COMPILE_ERROR`.
 Scenario override:
 - In **brownfield / migration mode**, a compile failure caused by a preserved source-contract shape should still be surfaced, but the preferred remediation is to improve the linter's resolution strategy or compatibility shims rather than rewriting the preserved contract semantics.
 
-Load every sibling schema file via `-r` so local file `$ref` links under `contracts/schemas/` resolve during compilation.
-
 ## IR-round-trip divergence (Phase 8)
 
 `contract-designer` projects IR endpoint detail into OpenAPI and IR `channel.binding` data into AsyncAPI bindings. The lint step round-trips the contracts back to the IR and fails on any disagreement.

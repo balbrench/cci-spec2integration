@@ -81,6 +81,9 @@ internal static class FlowTesterProgram
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
+            // Unquoted scalars bound to `object` (test context values, rule defaults)
+            // become bool / number / null as YAML intends; quoted ones stay strings.
+            .WithAttemptingUnquotedStringTypeDeserialization()
             .Build();
 
         return deserializer.Deserialize<IntegrationDocument>(yaml)
@@ -630,7 +633,9 @@ internal static class HeaderResolver
 
 internal static class JsonNodeFactory
 {
-    public static JsonObject ObjectFromDictionary(Dictionary<string, string>? values)
+    // Flow-test context values may be nested (the IR schema allows any JSON value),
+    // e.g. `<Dependency>: { <operationId>: <mock response> }` read by invoke steps.
+    public static JsonObject ObjectFromDictionary(Dictionary<string, object?>? values)
     {
         var result = new JsonObject();
         if (values is null)
@@ -640,7 +645,27 @@ internal static class JsonNodeFactory
 
         foreach (var pair in values)
         {
-            result[pair.Key] = pair.Value;
+            result[pair.Key] = FromYaml(pair.Value);
+        }
+
+        return result;
+    }
+
+    private static JsonNode? FromYaml(object? value) => value switch
+    {
+        null => null,
+        string text => JsonValue.Create(text),
+        IDictionary<object, object?> map => ObjectFromMap(map),
+        IEnumerable<object?> items => new JsonArray(items.Select(FromYaml).ToArray()),
+        _ => JsonSerializer.SerializeToNode(value),
+    };
+
+    private static JsonObject ObjectFromMap(IDictionary<object, object?> map)
+    {
+        var result = new JsonObject();
+        foreach (var pair in map)
+        {
+            result[Convert.ToString(pair.Key, System.Globalization.CultureInfo.InvariantCulture)!] = FromYaml(pair.Value);
         }
 
         return result;
@@ -1155,7 +1180,7 @@ internal sealed class FlowDefinitionTest
 {
     public string Name { get; set; } = string.Empty;
     public TriggerDefinition? Trigger { get; set; }
-    public Dictionary<string, string>? Context { get; set; }
+    public Dictionary<string, object?>? Context { get; set; }
     public List<ExpectationDefinition>? Expect { get; set; }
     public List<TestFaultDefinition>? Faults { get; set; }
 }
