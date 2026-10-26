@@ -82,6 +82,7 @@ If `ajv-cli` isn't available, hand the schema and the IR draft to a JSON-Schema 
 - Steps form a DAG; cycles are invalid.
 - Every branch path must eventually reach either a `send` or a terminal step with no `next`.
 - **Control flow is explicit.** A step with no `next`, no `routes`, and no `targets[]` is terminal — its branch ends there. Array order never implies sequence: control flow comes only from `next`, `routes[].next`, `targets[]`, `errorHandling.fallback`, and saga `children[]`. Give every step that should continue a `next`, including in a simple linear flow; a step left without one ends its branch.
+- **Write run semantics as fields, not comments.** Every flow run carries the envelope `{ body, headers, context }` defined in `docs/ir-spec.md`: predicates and route conditions read `body.…` / `context.…`; mappings with `source.contentPath: body` get the envelope with the latest message of their source type. Declare where a lookup lands with `resultKey` on the `enrich` / `invoke` step, a per-attempt record with `errorHandling.attemptMappingRef`, and flow-level dead-letter content with `errorHandling.dlq.mappingRef`. Packs and the FlowTester act on these fields; they cannot act on behaviour described only in YAML comments.
 - `errorHandling` at the top level sets defaults; override per flow only when justified in a trailing `# rationale:` comment.
 - Prefer `managedIdentity: system` unless multiple apps share identity.
 

@@ -73,6 +73,11 @@ For every `flows[].steps[]` that has a `mappingRef`:
 - The value must match a `mappings[].name` in the same IR file.
 - Finding: `MAPPING_REF_UNRESOLVED` (Sev-1) — `"step '{id}' mappingRef '{ref}' not found in mappings[]"`.
 
+The same check applies to the run-envelope mapping references: every `steps[].errorHandling.attemptMappingRef` and every flow-level / top-level `errorHandling.dlq.mappingRef` must name a `mappings[].name`. Finding: `MAPPING_REF_UNRESOLVED` (Sev-1). In addition, a `dlq.mappingRef` mapping's `source.messageRef` must be the message type of the flow's trigger channel (`schemaRef`), because it receives the trigger message as received — `DLQ_MAPPING_SOURCE_MISMATCH` (Sev-2). An `attemptMappingRef` mapping's source and target should be the same message type (it updates a record) — `ATTEMPT_MAPPING_SHAPE` (Sev-3) when they differ.
+
+### resultKey use
+`resultKey` is only meaningful on `enrich` and `invoke` steps. On any other step type, emit `RESULT_KEY_IGNORED` (Sev-3). Every `context.<key>` that an expression or mapping in a flow reads should be produced in that flow — by the trigger or a mapping output (`context.<lowerCamel(messageType)>`), a `resultKey`, a key declared in `tests[].context`, or one of the runtime keys (`failedStep`, `attemptResult`, `attemptedAt`). An unproduced key is the `TRACKED_CONTEXT_KEY_UNKNOWN` (Sev-3) finding, extended from `tracked[]` to predicates and mapping rules.
+
 ### schemaRef file existence
 For every `messages[].schemaRef`:
 - The referenced file must exist relative to the integration folder.

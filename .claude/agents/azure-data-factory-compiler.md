@@ -103,7 +103,7 @@ For each flow F where `implementation.host == data-factory`:
    - `schema` and `structure` populated from the JSON Schema referenced by the IR message (`messages[].schema`). For columnar formats (Parquet/CSV/Avro) emit the column-by-column structure; for document formats (`Json`, `CosmosDb`) emit the schema reference only.
    - Parameterize file path / table name when the trigger feeds them (e.g. `@dataset().fileName` bound from a tumbling-window or BlobEvents trigger).
 
-5. **Emit the pipeline.** Walk the flow's control-flow graph (`next`, `routes[].next`, `targets[]`, and `errorHandling.fallback`) and translate each step to an activity, wiring each activity's `dependsOn` from those links. Never chain activities by `steps[]` array order: a step with no `next`, `routes`, or `targets[]` is terminal.
+5. **Emit the pipeline.** Where the IR uses the run envelope (`docs/ir-spec.md`), a `resultKey` becomes a pipeline variable set from the activity output, and `errorHandling.dlq.mappingRef` shapes the DLQ activity's payload from the trigger input. Walk the flow's control-flow graph (`next`, `routes[].next`, `targets[]`, and `errorHandling.fallback`) and translate each step to an activity, wiring each activity's `dependsOn` from those links. Never chain activities by `steps[]` array order: a step with no `next`, `routes`, or `targets[]` is terminal.
 
    | IR step type | ADF activity |
    |---|---|

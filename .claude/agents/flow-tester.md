@@ -57,7 +57,7 @@ The interpreter is pack-agnostic and deterministic. It simulates just enough beh
 |-----------------|-----------|
 | `receive`       | Binds the test trigger payload to the current message. Follows `next`. |
 | `transform`     | Evaluates `mappingRef` via JSONata (synthesised from `rules[]` or using `expression`); replaces the current message with the mapping output. Follows `next`. |
-| `enrich`        | Same as `transform`, but a `dependency` mock may be provided via `tests[].context.<dep>`; otherwise the enrichment is a no-op with a warning. |
+| `enrich`        | With a `dependency`: looks up the mock under `tests[].context.<dependency>.<operationId>` (empty object if absent) and, when `resultKey` is set, stores it at `context.<resultKey>` leaving `body` unchanged. With a `mappingRef`: evaluates it like `transform`; with both, the mapping runs after the lookup and its output is what `resultKey` (or `body`) receives. |
 | `filter`        | Evaluates `predicate`; if falsy, drops the message and stops this branch. |
 | `router`        | Evaluates each `routes[].when`; follows the first truthy branch or the `default: true` entry. |
 | `recipientList` | Dispatches the message to every `targets[]` id in sequence (order matters for deterministic output). |
@@ -65,16 +65,22 @@ The interpreter is pack-agnostic and deterministic. It simulates just enough beh
 | `aggregator`    | Accumulates messages keyed by `correlation` until a fixture-controlled `flush` marker in `tests[].context`. |
 | `scatterGather` | `recipientList` + `aggregator` combined; children listed in `targets` run in order. |
 | `send`          | Records an emitted message on the named `channel` (logged for `expect[]` comparison). |
-| `invoke`        | Looks up a mock response under `tests[].context.<dependency>.<operationId>`. If missing, treats the call as successful with an empty body. If `faults[]` targets this step, raises the declared error after `afterAttempts` retries have been exhausted. |
+| `invoke`        | Looks up a mock response under `tests[].context.<dependency>.<operationId>`. If missing, treats the call as successful with an empty body. The response replaces `body`, or is stored at `context.<resultKey>` when set. If `faults[]` targets this step, the attempts after the first `afterAttempts` fail with the declared `errorCode`. |
 | `claimCheck`    | Records a write to the `store` channel and substitutes a `referenceMessageRef` payload. |
 | `wireTap`       | Records an emitted message on `target` without interrupting the main branch. |
 | `throttler`     | No-op for testing; records the rps/burst/strategy for assertions. |
 | `saga`          | Executes `children[].forward` steps in order; on failure of step N, invokes `compensate[N-1..0]` in reverse and surfaces the original error to the flow's error handler. |
 | `resequencer`   | Sorts buffered fixture messages by `orderingKey` within `window`; the test harness passes messages as a batch. |
 
+Trigger fixtures: `tests[].trigger.path` may hold the raw trigger message or a run envelope `{ body, headers, context }` (so mapping-test envelope fixtures can be reused). An envelope is unwrapped: `body` becomes the trigger message, and its `headers` / `context` apply underneath the test's own `trigger.headers` / `context`, which win on conflict.
+
+Run envelope: the interpreter implements the run-envelope rules in `docs/ir-spec.md` exactly — predicates and route conditions evaluate against `{ body, headers, context }`; a mapping with `source.contentPath: body` receives the envelope with `body` = the latest message of its `source.messageRef` type; every produced message is kept in the run's message history by type.
+
 Error flow:
-- When a step fails (invoked explicitly via `faults[]` or because its mapping throws), the interpreter walks the step's `errorHandling` → the enclosing flow's `errorHandling` → the top-level `errorHandling`. Retries honour `retry.policy` and `retry.count`. DLQ routing respects `onError` + `fallback`.
-- When the retry budget is exhausted and `onError: dlq` wins, the interpreter records an emitted message on `dlq.channel` with the envelope produced by the flow's DLQ mapping (when present).
+- When a step fails (invoked explicitly via `faults[]` or because its mapping throws), the interpreter walks the step's `errorHandling` → the enclosing flow's `errorHandling` → the top-level `errorHandling`. Retries honour `retry.count`; an error code listed in `nonRetryableErrors` is not retried.
+- With `errorHandling.attemptMappingRef`, the mapping runs after every attempt with `context.attemptResult` / `context.attemptedAt` set (a pinned `tests[].context.attemptedAt` is kept), and the last record is the body passed on.
+- Out of retries, `onError` decides: `fallback` runs the `fallback` step with the current body; `continue` proceeds to `next`; `dlq` / `fail` end the run as an unhandled error.
+- An unhandled error sets `context.failedStep` and records an emitted message on the flow's `dlq.channel`: the trigger message as received, or the output of `dlq.mappingRef` applied to it.
 
 ## Report formats
 
