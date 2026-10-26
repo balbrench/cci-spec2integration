@@ -65,7 +65,7 @@ The interpreter is pack-agnostic and deterministic. It simulates just enough beh
 | `aggregator`    | Accumulates messages keyed by `correlation` until a fixture-controlled `flush` marker in `tests[].context`. |
 | `scatterGather` | `recipientList` + `aggregator` combined; children listed in `targets` run in order. |
 | `send`          | Records an emitted message on the named `channel` (logged for `expect[]` comparison). |
-| `invoke`        | Looks up a mock response under `tests[].context.<dependency>.<operationId>`. If missing, treats the call as successful with an empty body. The response replaces `body`, or is stored at `context.<resultKey>` when set. If `faults[]` targets this step, the attempts after the first `afterAttempts` fail with the declared `errorCode`. |
+| `invoke`        | Looks up a mock response under `tests[].context.<dependency>.<operationId>`. If missing, treats the call as successful with an empty body. The response replaces `body`, or is stored at `context.<resultKey>` when set. If `faults[]` targets this step, the attempts after the first `afterAttempts` fail with the declared `error` code. A step's retry budget is `errorHandling.retry`, else step-level `retry`, else the flow's, else the top-level one. |
 | `claimCheck`    | Records a write to the `store` channel and substitutes a `referenceMessageRef` payload. |
 | `wireTap`       | Records an emitted message on `target` without interrupting the main branch. |
 | `throttler`     | No-op for testing; records the rps/burst/strategy for assertions. |

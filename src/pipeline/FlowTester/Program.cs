@@ -375,7 +375,8 @@ internal sealed class FlowTestRunner
 
         var errorHandling = step.ErrorHandling;
         var attemptMappingRef = errorHandling?.AttemptMappingRef;
-        var maxAttempts = ResolveRetryCount(step.ErrorHandling, flow.ErrorHandling, _document.ErrorHandling) + 1;
+        var maxAttempts = (step.ErrorHandling?.Retry?.Count ?? step.Retry?.Count
+            ?? ResolveRetryCount(null, flow.ErrorHandling, _document.ErrorHandling)) + 1;
         var record = currentMessage;
         var recordType = currentType;
         StepOutcome? outcome = null;
@@ -555,7 +556,8 @@ internal sealed class FlowTestRunner
         state.FaultAttempts[stepId] = attempts;
         if (attempts > matchingFault.AfterAttempts)
         {
-            throw new FaultInjectedException(matchingFault.ErrorCode ?? $"fault injected for step '{stepId}'.");
+            // `error` is the schema field; `errorCode` is accepted for older IRs.
+            throw new FaultInjectedException(matchingFault.Error ?? matchingFault.ErrorCode ?? $"fault injected for step '{stepId}'.");
         }
     }
 
@@ -1395,6 +1397,7 @@ internal sealed class StepDefinition
     public string? Store { get; set; }
     public string? Target { get; set; }
     public string? ResultKey { get; set; }
+    public RetryDefinition? Retry { get; set; }
     public ErrorHandlingDefinition? ErrorHandling { get; set; }
 }
 
@@ -1450,6 +1453,7 @@ internal sealed class ErrorExpectationDefinition
 internal sealed class TestFaultDefinition
 {
     public string? Step { get; set; }
+    public string? Error { get; set; }
     public string? ErrorCode { get; set; }
     public int AfterAttempts { get; set; }
 }
