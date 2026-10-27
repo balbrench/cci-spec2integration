@@ -388,6 +388,13 @@ internal sealed class FlowTestRunner
             lastError = null;
             try
             {
+                if (step.Type == "invoke" && !string.IsNullOrWhiteSpace(step.Dependency))
+                {
+                    // Record what each attempt sends, so tests can assert the wire payload.
+                    var request = OutboundPayload(step, currentMessage, state);
+                    state.EmittedMessages.Add(new EmittedMessage($"{step.Dependency}.{step.OperationId}", request?.DeepClone(), NewHeaders()));
+                }
+
                 MaybeInjectFault(step.Id!, state);
                 outcome = await ExecuteActionAsync(step, currentMessage, currentType, state);
             }
@@ -500,7 +507,7 @@ internal sealed class FlowTestRunner
             }
 
             case "send":
-                state.EmittedMessages.Add(CreateEmittedMessage(step.Channel, currentMessage, state));
+                state.EmittedMessages.Add(CreateEmittedMessage(step.Channel, OutboundPayload(step, currentMessage, state), state));
                 return new StepOutcome(currentMessage, currentType);
 
             case "claimCheck":
@@ -524,6 +531,10 @@ internal sealed class FlowTestRunner
     }
 
     private static Dictionary<string, string> NewHeaders() => new(StringComparer.OrdinalIgnoreCase);
+
+    // Run-envelope rule 5a: payloadKey sends context.<payloadKey> instead of the current body.
+    private static JsonNode? OutboundPayload(StepDefinition step, JsonNode? currentMessage, ExecutionState state) =>
+        string.IsNullOrWhiteSpace(step.PayloadKey) ? currentMessage : state.Context[step.PayloadKey!];
 
     private static bool IsEnvelope(JsonNode? payload) =>
         payload is JsonObject envelope
@@ -1397,6 +1408,7 @@ internal sealed class StepDefinition
     public string? Store { get; set; }
     public string? Target { get; set; }
     public string? ResultKey { get; set; }
+    public string? PayloadKey { get; set; }
     public RetryDefinition? Retry { get; set; }
     public ErrorHandlingDefinition? ErrorHandling { get; set; }
 }

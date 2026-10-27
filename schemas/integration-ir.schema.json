@@ -995,6 +995,11 @@
           "type": "string",
           "pattern": "^[a-z][a-zA-Z0-9]*$"
         },
+        "payloadKey": {
+          "description": "send / invoke: the outbound payload is context.<payloadKey> instead of the current body, and body is left unchanged. Use it when the message on the wire differs from the record the flow carries (for example a delivery step whose body is an attempt record).",
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$"
+        },
         "next": {
           "description": "Id of the step that runs after this one, in the same flow. A step with no next, no routes, and no targets[] is terminal — its branch ends there. Array order never implies sequence: control flow comes only from next, routes[].next, targets[], errorHandling.fallback, and saga children[].",
           "type": "string"
