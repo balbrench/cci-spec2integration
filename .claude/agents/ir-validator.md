@@ -214,7 +214,7 @@ Do not run this check for `http`, `blob`, or `timer` channels. Those bindings ar
 For every entry in `flows[].tests[]`:
 - `trigger.channel` must equal the enclosing flow's `trigger`. Finding: `FLOWTEST_TRIGGER_MISMATCH` (Sev-1) — `"flow '{flow}' test '{test}' trigger channel '{ch}' does not match flow trigger '{flowTrigger}'"`.
 - `trigger.path`, when present, must resolve to an existing file relative to the IR. Finding: `FLOWTEST_FIXTURE_MISSING` (Sev-1).
-- Every `expect[].channel` must resolve to a `channels[]` entry. Finding: `FLOWTEST_EXPECT_CHANNEL_UNRESOLVED` (Sev-1).
+- Every `expect[].channel` must resolve to a `channels[]` entry, or be an invoke-request pseudo-channel `<dependency>.<operationId>` where `<dependency>` is a `dependencies[].name` and the flow has an `invoke` step with that `dependency` and `operationId` (the FlowTester records each invoke attempt's outbound request there). Finding: `FLOWTEST_EXPECT_CHANNEL_UNRESOLVED` (Sev-1).
 - Every `expect[].step` must resolve to a step id within the same flow. Finding: `FLOWTEST_EXPECT_STEP_UNRESOLVED` (Sev-1).
 - Every `faults[].step` must resolve to a step id within the same flow. Finding: `FLOWTEST_FAULT_STEP_UNRESOLVED` (Sev-1).
 - Every `expect[].error.dlqChannel` must resolve to a `channels[]` entry. Finding: `FLOWTEST_DLQ_CHANNEL_UNRESOLVED` (Sev-1).
