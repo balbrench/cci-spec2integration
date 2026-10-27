@@ -105,7 +105,7 @@ Each rule is a regex over the requirement `text` plus an IR resolver. Apply rule
 | `R-HTTP` | `\bHTTP\b\|\bREST\b\|webhook\|API endpoint` | Some channel has `kind: http` |
 | `R-SOAP` | `\bSOAP\b\|WCF\|WS-` | Some channel has `binding.protocol: soap` or `binding.protocol: wcf` |
 | `R-SERVICEBUS` | `service bus\|JMS\|queue\|topic` | Some channel has `kind: queue` or `kind: topic` |
-| `R-RETENTION` | `retain\|retention\|keep.*for\|hold.*for` | Bound channel has `retention` set |
+| `R-RETENTION` | `\bretain\|retention\|\bkeep\b.*\bfor\b\|\bhold\b.*\bfor\b` | Bound channel has `retention` set |
 | `R-AUTH` | `managed identity\|OAuth\|API key\|authentication` | Inbound channel has `auth` set to a non-default value |
 | `R-CLASSIFICATION` | `classified\|confidential\|restricted\|public.*data\|PII\|personal.*data` | Bound message has `classification` set OR `pii: true` |
 | `R-AVAILABILITY` | `\d+(\.\d+)?\s*%\s*(uptime\|availability\|SLA)` | `slo.availability` set on at least one flow |
