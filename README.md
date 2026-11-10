@@ -311,7 +311,7 @@ See [docs/platform-pack-guide.md](docs/platform-pack-guide.md) for the full walk
 |-------|-------------|
 | [Greenfield Pipeline](docs/greenfield-pipeline.md) | Step-by-step guide through all 15 greenfield pipeline stages |
 | [BizTalk Migration Pipeline](docs/biztalk-pipeline.md) | Step-by-step guide for reverse-engineering a BizTalk solution to Azure |
-| [Agent Reference](docs/agent-reference.md) | Detailed reference for all 34 agents (20 core + 5 BizTalk + 9 Azure) |
+| [Agent Reference](docs/agent-reference.md) | Detailed reference for all 38 agents (21 core + 5 BizTalk + 12 Azure) |
 | [Architecture Review — Skills/Agents/Commands](docs/architecture-review-skills-agents.md) | Design review of how work is split across the three Claude Code primitives |
 | [IR Authoring Guide](docs/ir-authoring-guide.md) | Practical guide for reading and writing integration-ir.yaml |
 | [IR Specification](docs/ir-spec.md) | Formal spec for IR kinds, channels, and messaging semantics |
