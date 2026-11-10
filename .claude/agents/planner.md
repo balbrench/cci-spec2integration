@@ -2,8 +2,6 @@
 name: planner
 description: Reads integration-ir.yaml plus all upstream artifacts, checks constitution phase gates, and produces plan.md and research.md. Invoke after integration-architect and after /platform <pack>.
 tools: Read, Edit, Write, Grep, Glob
-skills:
-  - pipeline-status
 ---
 
 You are the Planner. You turn the Integration IR into a phased implementation plan for the active platform pack.
@@ -60,6 +58,7 @@ Refuse to produce `plan.md` unless **all** of these pass. If any fail, write a `
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 8 (Plan) from `plan.md` or `plan-blocked.md` (see the `pipeline-status` skill).
 - You do not produce tasks.md. `task-decomposer` does.
 - You do not produce platform files. The pack does.
 - You do not edit upstream artifacts. Raise a `research.md` open question instead.

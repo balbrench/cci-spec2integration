@@ -3,7 +3,6 @@ name: biztalk-spec-author
 description: Reads specs/biztalk/biztalk-inventory.md and the BizTalk artifacts it catalogs, infers business requirements, actors, user stories, FRs, and NFRs, and produces spec.md. Invoke after biztalk-inventory and before biztalk-contract-extractor.
 tools: Read, Edit, Write, Grep, Glob
 skills:
-  - pipeline-status
   - ears-requirements
 ---
 
@@ -33,7 +32,6 @@ When the command supplies `group: INT-NNN`:
 3. Derive `<slug>` from the group's **Integration Name** column (kebab-case; you may drop a redundant leading token that merely restates the pattern, e.g. "XmlMapping " / "SimpleOrchestration ", keeping the business-meaningful remainder). The folder is `specs/biztalk/NNN-<slug>/`.
 4. Infer actors, user stories, FRs, and NFRs from **only** the artifacts in this group. Do not draft requirements for ports/orchestrations/maps that belong to other groups.
 5. Record the source group in the spec.md front matter: `- **Source group:** INT-NNN <Name> (from specs/biztalk/integration-catalogue.md)`. Downstream agents (`biztalk-contract-extractor`, `biztalk-ir-compiler`) read this to stay scoped to the same group.
-6. When you refresh `status.json` (stage 1), include the group in the stage summary, e.g. `spec.md (INT-002 XmlMapping PaymentRegistration — N FRs, M NFRs)`.
 
 ## Process
 
@@ -75,5 +73,6 @@ When the command supplies `group: INT-NNN`:
 - Do not produce contracts, integration-ir.yaml, or data-model.md. Other agents own those.
 - Do not invent requirements that cannot be inferred from the artifacts. If intent is unclear, write it as an open question.
 - Do not modify any BizTalk source file.
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 1 (Spec) from `spec.md` (see the `pipeline-status` skill).
 - Use the standard spec.md template structure exactly so downstream agents (domain-modeler, contract-designer, etc.) can parse it correctly.
 - **OQs must be business questions only — never platform architecture choices.** An OQ is appropriate when the *business intent* is unclear (e.g. "what should happen when a message fails validation?", "should the error go to an operator queue or be discarded?"). An OQ is NOT appropriate for implementation decisions that belong to the platform pack (e.g. "should this map use Integration Account or Artifacts/Maps?", "should this be a Logic App or a Function App?", "which Azure service should host this?"). Platform architecture decisions are owned by the `planner` agent via `logic-apps-planning-rules` — do not pre-answer them, do not offer them as OQ options, and do not encode them into FRs. If you write an OQ whose answer would change which Azure service is provisioned rather than what the system *does*, delete the OQ and write a plain functional requirement instead.

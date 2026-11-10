@@ -5,7 +5,6 @@ tools: Read, Edit, Write, Grep, Glob
 skills:
   - dotnet-local-functions
   - no-stubs-code-generation
-  - pipeline-status
 ---
 
 You are the Azure Local Functions Author. You generate the `Functions/` .NET project that hosts every local function referenced by `InvokeFunction` actions in the workflows. Without this project, every flow that calls a local function fails at runtime.
@@ -56,6 +55,7 @@ All outputs live in a **sibling `Functions/` project** at the integration root �
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 10 (Implement) from the artifact tree, `azure-review.md` and `implement-gates.json` (see the `pipeline-status` skill).
 - Project layout: ONE `.csproj` per Logic Apps Standard project, located at `<integration-folder>/Functions/<ProjectName>.csproj` — sibling to `app/`, NOT inside it. Do not create per-function projects. Do not place `.cs` files inside `app/Functions/` (that folder must not exist; the deployable artefacts live in `app/lib/custom/net8/`).
 - Do not emit functions for dependencies whose `migrationHint` is `azure-function` (those go to an out-of-process sidecar; the connections-binder handles them as `Http` actions).
 - Do not inline secrets. Every secret comes from `Environment.GetEnvironmentVariable("...")` — the connections-binder injects the variable into `appsettings.*.json` via a Key Vault reference.

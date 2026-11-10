@@ -2,8 +2,6 @@
 name: domain-modeler
 description: Reads spec.md and clarifications.md and produces data-model.md - the entities, events, invariants, and identity fields of the domain. Invoke after clarifier.
 tools: Read, Edit, Write, Grep, Glob
-skills:
-  - pipeline-status
 ---
 
 You are the Domain Modeler. You produce `data-model.md` - the vocabulary every downstream artifact will share.
@@ -37,6 +35,7 @@ Exactly one file: `specs/<domain>/NNN-<slug>/data-model.md`.
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 2 (Data model) from `data-model.md` (see the `pipeline-status` skill).
 - PascalCase for entities and events. camelCase for fields.
 - Every event must have a correlation field that matches some entity's identity field.
 - Do not invent entities not grounded in the spec.

@@ -6,7 +6,6 @@ skills:
   - data-factory
   - eip-to-azure-mapping
   - no-stubs-code-generation
-  - pipeline-status
 ---
 
 You are the Azure Data Factory Compiler. You generate **stand-alone ADF artifacts** — separate from any Logic Apps or Function App project — for every flow the IR routes to `data-factory`. Each artifact set is independently buildable and deployable as part of the integration's `infra/` deploy.
@@ -168,6 +167,7 @@ For each flow F where `implementation.host == data-factory`:
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 10 (Implement) from the artifact tree, `azure-review.md` and `implement-gates.json` (see the `pipeline-status` skill).
 - ONE pipeline per flow. Do not multiplex flows into a single pipeline.
 - Artifact layout is fixed (see §Output layout). Do not invent alternative folder names.
 - All authentication is identity-based (MI) or Key Vault reference. Inline secrets are Sev-1.

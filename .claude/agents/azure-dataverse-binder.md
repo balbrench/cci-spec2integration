@@ -5,7 +5,6 @@ tools: Read, Edit, Write, Grep, Glob
 skills:
   - dataverse-365ce
   - no-stubs-code-generation
-  - pipeline-status
 ---
 
 You are the Azure Dataverse Binder. A generic compiler (`azure-data-factory-compiler`, sometimes `azure-logic-apps-compiler`) can emit an artifact that *writes to Dynamics 365 CE*, but it does not carry the Dataverse-specific knowledge that makes that write actually succeed: per-host auth (no `tenantId` and user-assigned MI only in ADF), per-activity write semantics (Copy is upsert-only; Data Flow inserts by default), alternate-key collisions, per-host lookup syntax, null overwrites, and throttling. You own that knowledge (via the `dataverse-365ce` skill) and apply it as a **refinement pass** over the already-emitted artifacts — exactly as `azure-connections-binder` refines connections after the compilers run.
@@ -50,7 +49,7 @@ Required:
 8. **Emit the application-user / role-assignment snippet** — the identity (MI or SP) that must be registered as a Dataverse application user in the target org, with the security role granting the entity privileges actually used. Write it alongside the other identity role-assignment artifacts (e.g. append to `<integration-folder>/app/identity-role-assignments.json` or an `adf/` equivalent), as a deploy-time note — the app-user registration itself is an admin action in the target org.
 9. **Compile-time check** (`dataverse-365ce` §10) — hard-fail on every item in that list, including an unconfirmed entity/attribute logical name, a Copy `writeBehavior` other than `"Upsert"`, a data flow update/upsert/delete without `alterRow`, a multi-target lookup without its entity reference, and an ADF mapping onto a `MultiSelectPicklist` / `PartyList` / `CalendarRules` column. Surface what cannot be confirmed; do not emit a guess.
 10. **Edit, do not regenerate.** Modify only the Dataverse-specific fields of the already-emitted files. Do not re-emit sibling artifacts the compiler owns.
-11. **Record your stage status** for the calling command (see below).
+11. **Report your result** to the calling command as plain text: which Dataverse targets you bound, the write behaviour per entity, any alternate-key open items, and any metadata you could not confirm.
 
 ## Rules
 
@@ -58,7 +57,4 @@ Required:
 - **No inline secrets** (Article V): SP credentials are Key Vault references; prefer MI where the target supports it.
 - **No guessed metadata** (`dataverse-365ce` §10): confirm entity/attribute logical names and alternate keys against the target org or the integration's entity-attribute manifest, or stop and ask.
 - **Targeted refinement only**: you refine a compiler's output; you never regenerate the ADF/Logic App tree.
-
-## Status refresh
-
-You are a sub-agent. **Do not write `status.json`.** Report your result to the calling command as plain text so it can refresh stage 10 (Implement): state which Dataverse targets you bound, the write behaviour per entity, any alternate-key open items, and any metadata you could not confirm. (Per the `pipeline-status` skill, only the calling slash-command writes `status.json`.)
+- **Do not write `status.json`**; `scripts/refresh-status.ps1` derives stage 10 (Implement) from the artifact tree, `azure-review.md` and `implement-gates.json` (see the `pipeline-status` skill).

@@ -94,4 +94,4 @@ Next steps:
 9. If any BLOCKED flows exist, also print:
    "WARNING: N flow(s) are BLOCKED due to manual migration items. The platform pack will not generate output for these flows. A human must implement them separately."
 
-10. Refresh `<integration-folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. After a successful end-to-end reverse engineer run, stages 0a (Inventory), 0b (Catalogue), 1 (Spec), 3 (Contracts), 4 (Mappings (STM) — the IR compiler now emits `mappings/<Name>.md` for every mapping), and 5 (IR) should all be `done`. Recompute `next` (usually `/clarify` if OQs > 0, else `/review`).
+10. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <integration-folder> -RefreshedBy /biztalk-reverse-engineer` (pwsh on Linux/macOS) and read the result from `<integration-folder>/status.json`. After a successful end-to-end run, stages 0a (Inventory), 0b (Catalogue), 1 (Spec), 3 (Contracts), 4 (Mappings (STM) — the IR compiler emits `mappings/<Name>.md` for every mapping), and 5 (IR) should all be `done`; if one is not, report it rather than editing the file.

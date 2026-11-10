@@ -3,17 +3,21 @@
 # Deterministic gate for the Azure artifact tree that /implement-azure emits.
 # The generating agents have no Bash, so they cannot parse, build or test what
 # they write; every check here catches a defect that shipped undetected before
-# the check existed. Called by /implement-azure (gates 8c-8e) and by CI.
+# the check existed. Called by /implement-azure (gates 8a-8d) and by CI.
 #
 # Usage:
-#   powershell -File scripts/check-azure-artifacts.ps1 -Folder specs/<domain>/NNN-<slug> [-Build] [-Test]
+#   powershell -File scripts/check-azure-artifacts.ps1 -Folder specs/<domain>/NNN-<slug> [-Build] [-Test] [-ReportFile <path>]
 #
-#   (no switch)  static checks only (JSON parse, workflow shape rules, SQL and
-#                Bicep rules, stored-procedure cross-check, paired-test presence)
-#   -Build       also `dotnet build` every project (Functions/ first, so
-#                app/lib/custom/net8 holds the DLLs the workflow tests load)
-#   -Test        also `dotnet test` every tests-mstest/*/*.csproj, ONE AT A
-#                TIME (Logic Apps test hosts all bind port 7071)
+#   (no switch)  static checks only (JSON parse incl. adf/, workflow shape rules,
+#                SQL and Bicep rules, stored-procedure cross-check, paired tests)
+#   -Build       also `az bicep build` infra/main.bicep and `dotnet build` every
+#                project (Functions/ first, so app/lib/custom/net8 holds the
+#                DLLs the workflow tests load)
+#   -Test        also `dotnet test` every tests-mstest/*/*.Tests.csproj, ONE AT
+#                A TIME (Logic Apps test hosts all bind port 7071)
+#   -ReportFile  also write the gate results as JSON (by convention
+#                <folder>/implement-gates.json). scripts/refresh-status.ps1
+#                reads it for stages 10 (Implement) and 11 (Tests).
 #
 # Output: one line per finding, "ERROR <rule> <file>: <message>" or
 # "WARN  <rule> <file>: <message>", then a summary line. Exit code 1 when any
@@ -22,7 +26,8 @@
 param(
     [Parameter(Mandatory = $true)][string]$Folder,
     [switch]$Build,
-    [switch]$Test
+    [switch]$Test,
+    [string]$ReportFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +36,10 @@ Set-StrictMode -Version 2.0
 $root = (Get-Item -LiteralPath $Folder).FullName.TrimEnd('\', '/')
 $script:errors = 0
 $script:warnings = 0
+$script:findings = New-Object System.Collections.ArrayList
+# Gate outcomes: pass | fail | not-run | not-applicable. Static is always run.
+$script:gates = [ordered]@{ staticChecks = 'pass'; bicepBuild = 'not-run'; dotnetBuild = 'not-run'; dotnetTest = 'not-run' }
+$script:testTotals = [ordered]@{ projects = 0; failedProjects = 0; passed = 0; failed = 0; skipped = 0 }
 
 function Rel([string]$path) {
     if ($path.StartsWith($root)) { return $path.Substring($root.Length).TrimStart('\', '/') }
@@ -38,6 +47,7 @@ function Rel([string]$path) {
 }
 function Report([string]$level, [string]$rule, [string]$file, [string]$message) {
     if ($level -eq 'ERROR') { $script:errors++ } else { $script:warnings++ }
+    [void]$script:findings.Add([ordered]@{ level = $level; rule = $rule; file = ((Rel $file) -replace '\\', '/'); message = $message })
     Write-Output ("{0,-5} {1} {2}: {3}" -f $level, $rule, (Rel $file), $message)
 }
 function Get-Files([string]$sub, [string]$filter) {
@@ -223,12 +233,60 @@ $script:dotnetRuns = 0
 function Invoke-Dotnet([string[]]$arguments, [string]$label) {
     $script:dotnetRuns++
     Write-Output "----- dotnet $($arguments[0]) $(Rel $arguments[1])"
-    & dotnet @arguments 2>&1 | Out-Host
+    $ErrorActionPreference = 'Continue'   # see the az call: native stderr is not fatal
+    $lines = @(& dotnet @arguments 2>&1 | ForEach-Object { "$_" })
     $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    $lines | Out-Host
+    if ($arguments[0] -eq 'test') {
+        $script:testTotals.projects++
+        if ($code -ne 0) { $script:testTotals.failedProjects++ }
+        # "Passed!  - Failed:     0, Passed:    10, Skipped:     0, Total:    10, ..."
+        foreach ($l in $lines) {
+            $m = [regex]::Match($l, 'Failed:\s*(\d+),\s*Passed:\s*(\d+),\s*Skipped:\s*(\d+)')
+            if ($m.Success) {
+                $script:testTotals.failed  += [int]$m.Groups[1].Value
+                $script:testTotals.passed  += [int]$m.Groups[2].Value
+                $script:testTotals.skipped += [int]$m.Groups[3].Value
+            }
+        }
+    }
     if ($code -ne 0) {
         Report 'ERROR' $label $arguments[1] "dotnet $($arguments[0]) exited $code"
+        $script:lastDotnetOk = $false
+        return
+    }
+    Write-Output "      ok"
+    $script:lastDotnetOk = $true
+}
+
+$staticErrors = $script:errors
+if ($staticErrors -gt 0) { $script:gates.staticChecks = 'fail' }
+
+if ($Build) {
+    $mainBicep = Join-Path $root 'infra/main.bicep'
+    if (-not (Test-Path -LiteralPath $mainBicep)) {
+        $script:gates.bicepBuild = 'not-applicable'
+    } elseif (-not (Get-Command az -ErrorAction SilentlyContinue)) {
+        $script:gates.bicepBuild = 'not-run'
+        Report 'ERROR' 'AZ_CLI_MISSING' $mainBicep 'Azure CLI not on PATH; cannot compile the Bicep (gate 8a)'
     } else {
-        Write-Output "      ok"
+        Write-Output "----- az bicep build infra/main.bicep"
+        # --stdout: compile without leaving a transient main.json behind.
+        # Native stderr (e.g. az's "new Bicep release" warning) must not become a
+        # terminating error under ErrorActionPreference=Stop in Windows PowerShell 5.1.
+        $ErrorActionPreference = 'Continue'
+        $bicepOut = @(& az bicep build --file $mainBicep --stdout 2>&1 | ForEach-Object { "$_" })
+        $bicepCode = $LASTEXITCODE
+        $ErrorActionPreference = 'Stop'
+        if ($bicepCode -ne 0) {
+            $bicepOut | Where-Object { $_ -match '(?i)error' } | Out-Host
+            $script:gates.bicepBuild = 'fail'
+            Report 'ERROR' 'BICEP_BUILD' $mainBicep "az bicep build exited $bicepCode"
+        } else {
+            $script:gates.bicepBuild = 'pass'
+            Write-Output "      ok"
+        }
     }
 }
 
@@ -241,17 +299,49 @@ if ($Build -or $Test) {
         $buildOrder += Get-Files 'Functions' '*.csproj'
         $buildOrder += Get-Files 'FunctionApps' '*.csproj'
         $buildOrder += Get-Files 'tests-mstest' '*.csproj'
-        if ($buildOrder.Count -eq 0) { Write-Output 'check-azure-artifacts: no .csproj found; build/test gates not applicable' }
-        foreach ($p in $buildOrder) { Invoke-Dotnet @('build', $p.FullName, '--nologo', '-v', 'q') 'DOTNET_BUILD' }
+        if ($buildOrder.Count -eq 0) {
+            Write-Output 'check-azure-artifacts: no .csproj found; build/test gates not applicable'
+            $script:gates.dotnetBuild = 'not-applicable'
+            if ($Test) { $script:gates.dotnetTest = 'not-applicable' }
+        } else {
+            $buildOk = $true
+            foreach ($p in $buildOrder) {
+                Invoke-Dotnet @('build', $p.FullName, '--nologo', '-v', 'q') 'DOTNET_BUILD'
+                if (-not $script:lastDotnetOk) { $buildOk = $false }
+            }
+            $script:gates.dotnetBuild = if ($buildOk) { 'pass' } else { 'fail' }
 
-        if ($Test) {
-            # Sequential on purpose: every Logic Apps test host binds port 7071.
-            foreach ($p in (Get-Files 'tests-mstest' '*.Tests.csproj')) {
-                Invoke-Dotnet @('test', $p.FullName, '--no-build', '--nologo', '-v', 'q') 'DOTNET_TEST'
+            if ($Test) {
+                # Sequential on purpose: every Logic Apps test host binds port 7071.
+                $testOk = $true
+                $testProjects = @(Get-Files 'tests-mstest' '*.Tests.csproj')
+                foreach ($p in $testProjects) {
+                    Invoke-Dotnet @('test', $p.FullName, '--no-build', '--nologo', '-v', 'q') 'DOTNET_TEST'
+                    if (-not $script:lastDotnetOk) { $testOk = $false }
+                }
+                $script:gates.dotnetTest = if ($testProjects.Count -eq 0) { 'not-applicable' } elseif ($testOk) { 'pass' } else { 'fail' }
             }
         }
     }
 }
 
 Write-Output ("check-azure-artifacts: {0} error(s), {1} warning(s), {2} stored-procedure call(s) checked, {3} dotnet run(s)" -f $script:errors, $script:warnings, $calledProcs.Count, $script:dotnetRuns)
+if ($ReportFile) {
+    $report = [ordered]@{
+        generated = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        tool      = 'scripts/check-azure-artifacts.ps1'
+        summary   = [ordered]@{
+            verdict  = if ($script:errors -gt 0) { 'FAIL' } else { 'PASS' }
+            errors   = $script:errors
+            warnings = $script:warnings
+        }
+        gates     = $script:gates
+        tests     = $script:testTotals
+        storedProcedureCalls = $calledProcs.Count
+        findings  = @($script:findings)
+    }
+    $json = $report | ConvertTo-Json -Depth 8
+    [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($ReportFile), $json, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Output "check-azure-artifacts: wrote $ReportFile"
+}
 if ($script:errors -gt 0) { exit 1 } else { exit 0 }

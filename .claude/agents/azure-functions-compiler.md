@@ -6,7 +6,6 @@ skills:
   - azure-functions
   - eip-to-azure-mapping
   - no-stubs-code-generation
-  - pipeline-status
 ---
 
 You are the Azure Functions Compiler. You generate **stand-alone Function App projects** — separate from any Logic Apps Standard project — for every flow the IR routes to `function-app`. Each project is independently buildable, testable, and deployable via `azd`.
@@ -176,7 +175,7 @@ For each flow F where `implementation.host == function-app`:
     - Every Durable orchestrator is deterministic — no `DateTime.UtcNow`, `Guid.NewGuid()`, `Task.Delay`, or direct I/O outside activities.
     - Every in-scope flow has `tests-mstest/<FlowName>.Tests/<FlowName>.Tests.csproj` with the MSTest `Using`, and every `Mappings/<MappingName>.cs` has a conformance test over the IR fixtures.
     - Every anonymous HTTP trigger that authenticates in code satisfies step 9a and has a log-capture test.
-    - You do not have Bash, so you cannot build or run the tests. State in the run summary that `/implement-azure` must run `dotnet build` and `dotnet test` on each Function App and its test project (gate 8c) before the stage is done.
+    - You do not have Bash, so you cannot build or run the tests. State in the run summary that `/implement-azure` must run `dotnet build` and `dotnet test` on each Function App and its test project (gate 8d) before the stage is done.
 
 12. **Print** per flow: project name, trigger kind, hosting plan, durable pattern (or `none`), count of activities / orchestrators / mappings / models, and any flows skipped (with reason).
 
@@ -195,6 +194,7 @@ For each flow F where `implementation.host == function-app`:
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 10 (Implement) from the artifact tree, `azure-review.md` and `implement-gates.json`, and stage 11 (Tests) from `tests-mstest/test-results.json` or the test projects (see the `pipeline-status` skill).
 - ONE Function App project per flow. Do not multiplex flows into a single project — each flow is independently versioned and deployed.
 - Project layout is fixed (see §Output layout). Do not invent alternative folder names.
 - `OutputType=Exe` and isolated worker only. In-process model is EOL on .NET 6 and forbidden.

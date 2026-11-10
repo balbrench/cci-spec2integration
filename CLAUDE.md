@@ -77,37 +77,12 @@ Reference-heavy compilers (`azure-logic-apps-compiler`, `azure-connections-binde
 
 ## Status refresh contract
 
-Every agent that produces or modifies a primary artifact under `specs/**/NNN-<slug>/` MUST, as its **final step**, update the relevant stage(s) in `<folder>/status.json` per the [`pipeline-status`](.claude/skills/pipeline-status/SKILL.md) skill. This is the agent's responsibility, not the slash command's — the agent is the only thing that knows with certainty what it produced and whether it succeeded.
+`<folder>/status.json` is derived state with **one writer**: [scripts/refresh-status.ps1](scripts/refresh-status.ps1). It computes every stage row from disk: whether each stage's artifact exists, and the verdict recorded in its report file (`review-report.json`, `ir-validation-report.json`, the test reports, `azure-review.md`, `implement-gates.json`, …). It also computes mtime-based staleness and `next`. The full contract, including which file drives each stage, is in [.claude/skills/pipeline-status/SKILL.md](.claude/skills/pipeline-status/SKILL.md).
 
-Agents that must refresh `status.json`:
-
-| Agent | Stage(s) it owns |
-|---|---|
-| `biztalk-spec-author` | 1 (Spec) |
-| `clarifier` | 1a (Clarifications) |
-| `domain-modeler` | 2 (Data model) |
-| `biztalk-contract-extractor`, `contract-designer`, `contract-linter` | 3 (Contracts), 3a (Contracts lint) |
-| `mapping-designer` | 4 (Mappings STM) |
-| `biztalk-ir-compiler`, `integration-architect` | 5 (IR) |
-| `ir-validator` | 5a (IR validation) |
-| `stm-drift-checker` | 5b (STM drift) |
-| `secret-scanner` | 5c (Secret scan) |
-| `pii-flow-checker` | 5d (PII flow) |
-| `reviewer` | 5e (Review) |
-| `mapping-tester` | 6 (Mapping tests) |
-| `flow-tester` | 6a (Flow tests) |
-| `planner` | 8 (Plan) |
-| `task-decomposer` | 9 (Tasks) |
-| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-dataverse-binder`, `azure-sql-schema-author`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | 10 (Implement) |
-| `azure-workflow-tester` | 11 (Tests) |
-
-**How to update:** read the existing `status.json`, merge only the stage rows this agent owns (preserving all other keys including `artifactHashes` and `lastImplement`), and write it back. Never overwrite the full file from scratch unless the file doesn't exist yet.
-
-**Exception — always re-probe state.json-derived stages.** Stage 7 (Platform pack) is owned by no artifact-producing agent; it is a pure function of `.spec2integration/state.json`. On every refresh (whether a full `/status` rebuild or a per-agent merge), recompute stage 7 from `state.json` (`done` when `activePlatform` is non-null, else `missing`) rather than preserving the prior row. Otherwise a run that reuses an already-active pack — without re-running `/platform`, the only command that owns stage 7 — carries a stale `missing` placeholder forward indefinitely, even though the done-criterion has been satisfied the whole time. (Phase gate 7 in the constitution reads `state.json` directly, so this never blocks `/plan`; the stale row is cosmetic but misleading.)
-
-The orchestrating slash command may do a final full `/status`-style re-probe after all agents complete, but it is no longer the primary owner. Read-only commands (`/status`, `/ir-diff`, `/visualize`, `/drift-check`) are exempt. `/status` remains the on-demand full rebuild.
-
-A `PostToolUse` hook (`Write|Edit`) backs this up automatically — `scripts/refresh-status.ps1`, wired in the `hooks` block of `.claude/settings.json`, rebuilds `status.json` after any edit inside an integration folder (tagged `refreshedBy: auto:postwrite-hook`). The hook also computes **mtime-based staleness**: because it runs on every edit with full filesystem access, it is the always-on staleness probe the Bash-less slash commands can't run — editing an upstream artifact flips its downstream stages to `stale` and repoints `next` at the rebuild, surfaced on the next `/next`, `/status`, or visualizer read without a manual probe. Slash commands still perform the authoritative refresh with their own name as the final step; the hook is the safety net. To opt out, remove the `hooks` block from `.claude/settings.json`.
+- **Agents never write `status.json`.** They write their artifact and, where they have a verdict, their report file. An outcome with no report file gets a report file the script reads, not a hand-written stage row.
+- **Commands never write stage rows.** A command with Bash/PowerShell runs `scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /<command>` as its last step. A command without it relies on the hook.
+- **The hook.** A `PostToolUse` hook on `Write|Edit` (the `hooks` block of [.claude/settings.json](.claude/settings.json)) runs the script after any edit inside an integration folder, tagged `refreshedBy: auto:postwrite-hook`. It cannot see Bash/script edits, edits made outside Claude Code, or CI; run `/status <folder>` after those. Hook settings are read when a session starts, so restart after changing them.
+- **Preserved keys.** A few keys cannot be derived from disk. The script carries them forward, and only their owner changes them: `artifactHashes` / `lastImplement` (`/implement-azure`, `/change`), `lifecycle` and `stages[].frozen` (`/lifecycle`).
 
 ## Lifecycle / maintenance phase
 

@@ -39,7 +39,7 @@ Apply a **targeted change** to an integration whose artifacts are already deploy
 
 5. **Read the existing target artifact(s) first**, so the agent edits rather than regenerates. Then invoke the owning agent via the `Agent` tool with this exact directive (the agents carry the authoritative knowledge of correct ADF/Bicep/SQL/Dataverse structure; hand-editing them is how silent bugs enter):
 
-   > Read the existing artifact(s) at `<path(s)>`, then make this targeted change: `<description>`. Do **not** regenerate other artifacts, and do **not** re-emit files you were not asked to change — edit only the listed file(s). Preserve all surrounding structure, comments, and tokens. Do not write `status.json` (the calling command owns the refresh).
+   > Read the existing artifact(s) at `<path(s)>`, then make this targeted change: `<description>`. Do **not** regenerate other artifacts, and do **not** re-emit files you were not asked to change — edit only the listed file(s). Preserve all surrounding structure, comments, and tokens. Do not write `status.json` (`scripts/refresh-status.ps1` is its only writer).
 
    If `--dry-run` was set, instead print: the resolved agent, the exact target file list, and the directive above — then stop.
 
@@ -56,7 +56,7 @@ Apply a **targeted change** to an integration whose artifacts are already deploy
    - **Status:** applied (not yet deployed)
    ```
 
-8. **Keep the drift baseline honest.** For every file the agent edited, recompute its SHA-256 (PowerShell `Get-FileHash -Algorithm SHA256`, or `sha256sum`) and update that path's entry in the top-level `artifactHashes` object in `<folder>/status.json`. Merge — preserve every other key, including `lifecycle`, every `stages[].frozen` flag, `lastImplement`, and the hashes of files you did **not** change. Set `refreshedBy: "/change"` and `generatedAt` to now. Do **not** flip any stage status or clear any freeze — a targeted edit does not un-freeze the integration.
+8. **Keep the drift baseline honest.** For every file the agent edited, recompute its SHA-256 (PowerShell `Get-FileHash -Algorithm SHA256`, or `sha256sum`) and update that path's entry in the top-level `artifactHashes` object in `<folder>/status.json`. Change only that key — preserve every other key, including `lifecycle`, every `stages[].frozen` flag, `lastImplement`, the stage rows, and the hashes of files you did **not** change. Do **not** flip any stage status or clear any freeze — a targeted edit does not un-freeze the integration. Then run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /change` (pwsh on Linux/macOS) and read the result from `<folder>/status.json`; the script rebuilds the stage rows around the new hashes.
 
 9. Remind the user that the change is applied to the repo but **not deployed**: print the deploy path for the active platform (e.g. for Azure: `Deploy with /deploy-azure <folder>, or push to main to run the integration's deploy.yml (apply-sql for SQL, the data-factory publish job for ADF, azd provision (Incremental) for Bicep).`). Deployment stays a deliberate, user-run step.
 

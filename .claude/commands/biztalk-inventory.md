@@ -32,4 +32,4 @@ Steps:
      - `Migrate the whole solution at once` — run `/biztalk-reverse-engineer $ARGUMENTS` (every group collapses into one combined integration).
      - `Review the inventory and catalogue first`
      - `Stop here`
-8. The inventory is shared across all BizTalk-derived integrations and is not itself a per-folder artifact. Skip the `status.json` refresh here — `/biztalk-reverse-engineer` (which produces the per-integration folder) handles it. If the user has already run `/biztalk-reverse-engineer` previously, refresh `status.json` for every `specs/biztalk/NNN-<slug>/` folder so stages 0a (Inventory) and 0b (Catalogue) reflect the updated counts.
+8. The inventory is shared across all BizTalk-derived integrations and is not itself a per-folder artifact. Do not write any `status.json`. The status hook does not fire for `specs/biztalk/biztalk-inventory.md` or `integration-catalogue.md` (they are outside any integration folder), so if `specs/biztalk/NNN-<slug>/` folders already exist from an earlier `/biztalk-reverse-engineer` run, tell the user to run `/status <folder>` for each so stages 0a (Inventory) and 0b (Catalogue) pick up the updated files.

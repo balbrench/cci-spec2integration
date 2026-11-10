@@ -29,7 +29,7 @@ This command is **read-only with respect to pipeline artifacts** — it writes o
    - **Spec↔code** — every finding in `reconciliation-report.json`: IR constructs with no implementing artifact, artifacts no IR construct accounts for, requirements the IR satisfies but nothing implements, and transforms whose equivalence couldn't be confirmed.
    - **STM drift** — `STM_DRIFT` findings from `stm-drift-report.json`.
    - **Artifact drift** — when `status.json` has `artifactHashes`, recompute SHA-256 for a sample of the recorded files (PowerShell `Get-FileHash`, or `sha256sum`) and flag any whose digest no longer matches (same check as `/drift-check`). Note hand-edits that have not been re-baselined.
-   - **Staleness** — every entry in `status.json.staleness` (upstream edited after a downstream artifact). If `status.json` is Bash-stale (`staleness_probed: false`), recompute mtimes per the dependency map in the `pipeline-status` skill.
+   - **Staleness** — every entry in `status.json.staleness` (upstream edited after a downstream artifact). If `staleness_probed` is `false` or absent, the file predates `scripts/refresh-status.ps1`: report staleness as unverified and tell the user to run `/status <folder>` (do not recompute it here).
 
 5. Write `<folder>/analysis-report.md` — a single conflict table, most-serious first:
    ```

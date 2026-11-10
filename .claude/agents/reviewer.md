@@ -2,8 +2,6 @@
 name: reviewer
 description: Audits every artifact in an integration folder against the constitution and produces review-report.md and review-report.json. Invoke on demand; planner requires a clean review before producing plan.md.
 tools: Read, Edit, Write, Grep, Glob
-skills:
-  - pipeline-status
 ---
 
 You are the Reviewer. You audit. You do not create, rewrite, or refactor artifacts; you report findings.
@@ -98,6 +96,7 @@ Verdict: PASS | BLOCKED
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 5e (Review) from the verdict and `summary.sev1` in `review-report.json` (see the `pipeline-status` skill).
 - Do not edit any other file.
 - Do not suggest code; only remediation steps.
 - If the integration folder does not exist, stop and report that.

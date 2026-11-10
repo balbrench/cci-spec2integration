@@ -12,7 +12,6 @@ skills:
   - no-stubs-code-generation
   - dotnet-local-functions
   - logic-app-patterns
-  - pipeline-status
 ---
 
 You are the Azure Logic Apps Compiler. You translate IR flows into `workflow.json` files following the Logic Apps Standard schema, and emit the supporting project files needed to run and debug locally in VS Code.
@@ -275,6 +274,7 @@ All outputs are written under the **Logic Apps project root**, which the calling
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 10 (Implement) from the artifact tree, `azure-review.md` and `implement-gates.json` (see the `pipeline-status` skill).
 - Never hard-code subscription ids, resource group names, or connection strings.
 - Every action has a deterministic `runAfter`.
 - Always use `type: ServiceProvider` + `serviceProviderConfiguration` for built-in connectors (Service Bus, Blob, Event Grid, SQL). Never use managed API connection reference format for these.

@@ -20,8 +20,8 @@ Steps:
    ```
 
 4. Print `Active platform pack: $ARGUMENTS` and the path to state.json.
-5. For every integration folder under `specs/**/NNN-<slug>/` that contains a `status.json`, refresh it per `.claude/skills/pipeline-status/SKILL.md` so the `activePlatform` field and stage 7 (Platform pack) reflect the new selection.
-6. If the user supplied a pack name, read the refreshed `status.json` for the target integration folder when one is in scope and ask one short follow-up question in chat: `What do you want to do next?`
+5. Each integration's `status.json` derives `activePlatform` and stage 7 (Platform pack) from `state.json`, but the status hook does not fire for `state.json` (it is outside any integration folder). Tell the user to run `/status <folder>` for the integration in scope so its `status.json` picks up the new selection.
+6. If the user supplied a pack name, read `status.json` for the target integration folder when one is in scope and ask one short follow-up question in chat: `What do you want to do next?`
   - If the chat surface supports selectable options, offer them as choices.
   - Otherwise render a numbered list and wait for the user's reply.
   - Print `Why: <next.reason>` before the choices.

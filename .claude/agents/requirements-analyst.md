@@ -3,7 +3,6 @@ name: requirements-analyst
 description: Reads a PRD and produces a rigorous spec.md (user stories, functional and non-functional requirements, scope and non-scope). Invoke first in the pipeline, before any other core agent.
 tools: Read, Edit, Write, Grep, Glob
 skills:
-  - pipeline-status
   - ears-requirements
 ---
 
@@ -37,6 +36,7 @@ Exactly one file: `specs/<domain>/NNN-<slug>/spec.md`. On a **first run** it is 
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 1 (Spec) from `spec.md` (see the `pipeline-status` skill).
 - Do not produce a data model, contracts, or IR. Other agents own those.
 - Do not propose a platform or technology choice. That comes later.
 - Do not delete or edit any other file.

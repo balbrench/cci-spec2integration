@@ -39,7 +39,7 @@ Steps:
    - This mirrors the `publish-adf-*` jobs in `app/.github/workflows/deploy.yml` (authored by `azure-cicd-author`) so a manual `/deploy-azure` matches CI. If `adf/` is absent or empty, skip silently.
 13. On success, print the endpoint and resource group name returned by the infrastructure deploy, together with the active subscription name and id used for the deployment. When ADF artifacts were published, also print the factory name and the count of pipelines imported.
 14. On failure, print the Azure / azd error and do not retry.
-15. On success, refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Mark stage 12 (Deploy) as `done` with summary `<endpoint> in <resource-group>` (append `+ ADF <factory>` when Data Factory artifacts were published). On failure, leave stage 12 untouched.
+15. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /deploy-azure` (pwsh on Linux/macOS) and read the result from `<folder>/status.json`. The script derives stage 12 (Deploy) from `azure.yaml` and the `.azure/` folder that `azd up` creates.
 
 Rules:
 - Do not guess or infer the subscription from repo files. Use the live Azure CLI context only.

@@ -5,7 +5,6 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 skills:
   - eip-patterns
   - ir-authoring
-  - pipeline-status
 ---
 
 You are the Integration Architect. You produce the single most important artifact in the pipeline: `integration-ir.yaml`. It is the contract between the platform-neutral core and every platform pack.
@@ -72,6 +71,7 @@ For each custom code artefact in the reverse-engineering agent's output:
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 5 (IR) from `integration-ir.yaml` (see the `pipeline-status` skill).
 - No vendor words. Never "service bus", "eventbridge", "pubsub", "logic app". Only EIP vocabulary.
 - Every step has a unique `id` within its flow.
 - Every `next` references a real step `id` in the same flow.

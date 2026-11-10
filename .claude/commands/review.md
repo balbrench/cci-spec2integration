@@ -22,7 +22,7 @@ Steps:
    ```
 
    If any Sev-2 findings are present, also print: `To proceed past Sev-2 for this run only, re-run with: /review <folder> --allow-sev2`.
-6. Refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Mark stages 5a (IR validation) and 5e (Review) as `done`; mark 5b (STM drift) and 5d (PII flow) as `covered`. For 5c (Secret scan): mark `covered` when the scanner ran (biztalk path), or `done` with summary `not applicable (greenfield)` when it was skipped. Populate `counts.sev1`/`sev2`/`sev3` from review-report.json.
+6. The status hook rebuilds `<folder>/status.json` from the agents' outputs; read it after the agents return. If it looks out of date (for example hooks are disabled), tell the user to run `/status <folder>`.
 7. Read the refreshed `<folder>/status.json` and ask one short follow-up question in chat: `What do you want to do next?`
 	- If the chat surface supports selectable options, offer them as choices.
 	- Otherwise render a numbered list and wait for the user's reply.

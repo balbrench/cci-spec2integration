@@ -6,7 +6,6 @@ skills:
   - logic-apps-standard-testing
   - dotnet-local-functions
   - workflow-json-rules
-  - pipeline-status
 ---
 
 You are the Azure Workflow Tester. You write unit tests that exercise each flow with mocked connectors using the official `Microsoft.Azure.Workflows.WebJobs.Tests.Extension` SDK (MSTest).
@@ -348,6 +347,7 @@ A test where `status == Succeeded` but a field-level assertion fails is a **test
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 11 (Tests) from `tests-mstest/test-results.json`, else `implement-gates.json` `tests`, else the test projects' existence (see the `pipeline-status` skill).
 - One test project per flow; do not bundle flows.
 - Use `Microsoft.Azure.Workflows.WebJobs.Tests.Extension` — not any third-party testing framework.
 - Every assertion is explicit; no broad "anything succeeded" checks.

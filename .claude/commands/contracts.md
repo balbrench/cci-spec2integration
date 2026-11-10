@@ -18,7 +18,7 @@ Steps:
    those downstream stages stale. `/status <folder>` will flag them; resume with
    `/run-pipeline --folder <folder>`.
    ```
-6. Refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Mark stage 3 (Contracts) as `done`; mark stage 3a (Contracts lint) as `done` only if the lint verdict was PASS.
+6. The status hook rebuilds `<folder>/status.json` from the agents' outputs; read it after the agents return. If it looks out of date (for example hooks are disabled), tell the user to run `/status <folder>`.
 7. Read the refreshed `<folder>/status.json` and ask one short follow-up question in chat: `What do you want to do next?`
 	- If the chat surface supports selectable options, offer them as choices.
 	- Otherwise render a numbered list and wait for the user's reply.

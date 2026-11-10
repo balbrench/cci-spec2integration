@@ -6,7 +6,6 @@ skills:
   - ir-authoring
   - eip-patterns
   - biztalk-to-azure-mapping
-  - pipeline-status
   - workflow-json-rules
 ---
 
@@ -381,6 +380,7 @@ Print summary: channels, messages, mappings (counts by migrationHint), STM docs 
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 5 (IR) from `integration-ir.yaml` (see the `pipeline-status` skill).
 - Never emit credentials, passwords, connection strings, or API keys inline.
 - Every external inbound message must have an `idempotencyKey` (Article III). If none can be determined, flag as open question and add a `# TODO` comment.
 - Every external hop must have `errorHandling.retry` and `errorHandling.dlq` (Article VI).
