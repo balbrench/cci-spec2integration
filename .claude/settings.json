@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/refresh-status.ps1"
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR/scripts/refresh-status.ps1\""
           }
         ]
       }
