@@ -143,7 +143,7 @@ spec2integration/
 ├── templates/                   # skeleton artifacts (see templates/CLAUDE.md)
 ├── src/pipeline/FlowTester/     # .NET 8 deterministic flow-test runner
 ├── tools/                       # UIs: pipeline-runner, vscode-extension (hosts the IR visualizer)
-├── scripts/                     # helper scripts (status refresh, catalog build)
+├── scripts/                     # helper scripts (status refresh, catalog build, Azure artifact gate)
 ├── docs/                        # architecture and reference docs
 └── .spec2integration/           # mutable pipeline state (state.json)
 ```

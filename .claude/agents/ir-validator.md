@@ -223,7 +223,7 @@ For every entry in `flows[].tests[]`:
 For every `flows[]` entry:
 - If `tracked` is empty or absent, and the flow's trigger channel references a message with a `correlationId`, emit `TRACKED_CORRELATION_ID_MISSING` (Sev-2) — packs need an explicit binding to carry correlation into platform observability. `reviewer` promotes this to an Article IV citation.
 - Every `tracked[].source` that starts with `$context.` should resolve to a context key populated by an earlier step; otherwise emit `TRACKED_CONTEXT_KEY_UNKNOWN` (Sev-3) — best-effort, warn only.
-- Every `metrics[].source` must be either a body path, a header name, or a `$context.` reference; any other prefix is `METRIC_SOURCE_UNRECOGNISED` (Sev-2).
+- Every `metrics[].source` must be a body path, a header name, a `$context.` / `context.` reference, a literal (counters typically use `'1'`), or a JSONata expression over the run envelope (`body`, `headers`, `context` — e.g. `$count(context.releasedNotificationClaims)`), matching the schema's `flowMetric.source` description. A source that is none of these is `METRIC_SOURCE_UNRECOGNISED` (Sev-2). A context key the expression reads that no earlier step or `resultKey` produces is `TRACKED_CONTEXT_KEY_UNKNOWN` (Sev-3), as for `tracked[]`.
 - If `logSampling.rate` is `0` and `logSampling.level` is `trace` or `debug`, emit `LOG_SAMPLING_INCONSISTENT` (Sev-3) — sampling nothing while asking for verbose levels is almost always a mistake.
 
 ### Custom code — codeRef file existence

@@ -355,6 +355,33 @@ When parsing JSON payloads:
 
 - Use `Parse JSON` built-in action — do NOT use `json()` expression for structured access.
 - `Parse JSON` exposes typed tokens for all properties, making downstream references cleaner and designer-friendly.
+- **The inline `schema` must not contain `pattern` or `patternProperties`** [VERIFIED 2026-11-06 — unit-test host; the runtime shares the validator]: the action fails on every message with *"The 'schema' property of action 'ParseJson' inputs contains 'pattern' or 'patternProperties' properties. 'Pattern' or 'patternProperties' properties are not supported in the action"*. Keep `type`, `required`, `properties`, `items` and `enum`; string-format rules stay in the contract schema, which is validated upstream.
+
+### 8.6a Action shape rules the runtime rejects [VERIFIED 2026-11-06 — unit-test host]
+
+- **No `limit` on `ServiceProvider` actions.** *"The property 'limit' is not allowed on action type 'ServiceProvider'"* fails workflow creation. An IR per-call timeout cannot be expressed on a built-in SQL / Service Bus action; rely on the connector's own timeout and the `retryPolicy`. `limit` (`count` / `timeout`) remains valid on `Until`, and `limit.timeout` on `Http`.
+- **`Terminate` `runError.code`:** any string works in the cloud runtime, but the unit-test host parses it as `ErrorResponseCode` and throws *"Requested value '<code>' was not found"* for a custom code. Custom codes are fine to emit (operators read them); the test harness must map them to a valid enum member in its test copy of the workflow (see `logic-apps-standard-testing`).
+- **Prefer `If` over a one-case `Switch`.** A `Switch` with a single case plus `default` is an `If` / `else`; the unit-test SDK reports no actions from inside `Switch` branches in the run result, so tests cannot assert on them. Emit `"type": "If"` with `"expression": { "and": [ { "equals": [<expr>, <value>] } ] }`, the case actions under `actions` and the default under `else.actions`. Keep `Switch` only for two or more cases.
+
+### 8.6b Peek-lock triggers and work that outlives the lock
+
+A Service Bus peek-lock trigger holds the message lock for at most the entity's `lockDuration` (**PT5M maximum**). The built-in trigger does not renew the lock during a run. If the run settles the message (complete / abandon / dead-letter) after the lock has expired, the settle fails with `MessageLockLost`, the run fails, and the broker redelivers the message, so work already done is repeated.
+
+**Rule:** before emitting a peek-lock flow, add up the worst-case time to the settle action: every `retryPolicy` (count × maximum interval), every `Until` `limit.timeout`, every `Wait`, every honoured `Retry-After`, and the per-call timeouts. If the total can exceed `lockDuration`, **do not hold the lock across that work.**
+- **Settle at the idempotency claim.** When the IR declares an idempotency claim (a conditional SQL write such as `markSubmitting`, or `claimNotificationIfPending`), complete the message right after the claim returns success. From that point the claim, not the lock, prevents duplicate processing, and a redelivery is a no-op.
+- **Lost claim → complete and stop.** When the claim returns a conflict (409, or no row), complete the message and `Terminate` with `Succeeded`. Do not go on into the long-running work while still holding the lock.
+- **Guard the later settlements.** Initialise a `messageSettled` Boolean variable at the start of the run and set it to `true` when the message is completed. Make every later settlement action (the post-Try complete, the Catch abandon or dead-letter) conditional on `messageSettled == false`.
+- **Cap honoured `Retry-After`** with `min(int(<header>), <MaxBackoffSeconds parameter>)`, so a dependency cannot stretch a loop without limit.
+- **Failures after settlement are not redelivered.** A run that fails after the early complete must dead-letter explicitly. The IR (or the platform via `azure-bicep-author`) must provide a recovery path: a sweep that re-drives claims left in an intermediate state, and an alert on failed runs. Record the decision in `decisions.md`.
+- If no claim exists and the work can outlive the lock, raise it as a Sev-2 finding in the run summary rather than emitting a flow that will lose its lock.
+
+### 8.6c Tracked properties and secured data
+
+The platform rejects `trackedProperties` on an action whose `runtimeConfiguration.secureData` covers its inputs or outputs, and on actions whose tracked expressions read a secured action's outputs. The unit-test host does **not** enforce this, so a passing test suite proves nothing here.
+- **Never put `trackedProperties` on a secured action.** A flow that handles `confidential` / `restricted` data typically secures its trigger and its SQL / HTTP actions. Those actions carry no tracked properties.
+- **One tracking action per workflow.** Emit a single unsecured `Compose` named `trackingContext` at the root of the workflow (`runAfter` the trigger). Its `inputs` hold only correlation identifiers (`requestId`, `correlationId`, `messageId`), and its `trackedProperties` read only `@action()?['outputs']`. Use expressions that cannot fail (null-safe `?[...]`, with `coalesce` fallbacks).
+- **Correlation:** set `correlation.clientTrackingId` on Service Bus and HTTP triggers to the message's correlation id, so all runs of one business transaction share a tracking id.
+- **Runtime verification is pending** for whether a `trackingContext` that reads a secured trigger's outputs, and a `clientTrackingId` on a secured `splitOn` trigger, are emitted by the deployed host. Until that is confirmed, list both in the run summary as items to verify in dev (App Insights `customDimensions.trackedProperties` and the run's `ClientTrackingId`).
 
 ### 8.7 InvokeFunction retry policy
 
@@ -431,7 +458,11 @@ Before storing workflow definitions, cross-check EVERY action against this table
 | XML output assembly           | `XmlCompose` action (Source: LogicApp or IntegrationAccount)   | `Compose` + `concat()` for XML                              |
 | EDI decode → XML needed       | Add `XmlCompose` after `EdifactDecode`/`X12Decode`             | Pass JSON decode output directly to XML-expecting code      |
 | Complex XML with .NET logic   | .NET local function                                             | `Compose` + `concat()` approximation                        |
-| JSON parsing                  | `Parse JSON` action                                             | `json()` expression for structured access                   |
+| JSON parsing                  | `Parse JSON` action; schema with `type`/`required`/`properties`/`enum` only | `json()` expression for structured access; `pattern`/`patternProperties` in the `Parse JSON` schema (fails every run, §8.6) |
+| Action limits                 | `limit` only on `Until` (and `limit.timeout` on `Http`)         | `limit` on a `ServiceProvider` action (rejected at creation, §8.6a) |
+| Two-way branch                | `If` / `else`                                                   | A `Switch` with one case + `default` (branch actions invisible to unit tests, §8.6a) |
+| Peek-lock + long work         | Complete the message right after the idempotency claim; on a lost claim complete and `Terminate` Succeeded; later settlements guarded by `messageSettled` (§8.6b) | Retry loops, `Until`, `Wait` or `Retry-After` honouring whose worst case exceeds `lockDuration` (PT5M max) while the lock is still held |
+| Tracked properties + secured data | `trackedProperties` only on one unsecured root `trackingContext` Compose holding correlation ids; `clientTrackingId` on the trigger (§8.6c) | `trackedProperties` on any action with `secureData`, or reading a secured action's outputs (rejected by the platform, not by the unit-test host) |
 | Array trigger debatching      | `splitOn` on trigger                                            | `For_each` loop wrapping all actions                        |
 | File trigger cleanup          | Do nothing (no delete)                                          | Delete/archive trigger input file                           |
 | Sub-orchestration             | Separate workflow + `Workflow` action                           | Merge into parent or local function                         |

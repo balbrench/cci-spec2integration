@@ -297,7 +297,7 @@ messages:
 ### Idempotency and correlation
 
 - `idempotencyKey` is **mandatory** on any message consumed from an external inbound channel (Article III). `ir-validator` emits Sev-1 if missing; `reviewer` cites Article III explicitly.
-- `correlationId` is a body path or header name; when set, packs guarantee that the same value flows through every outbound message and every log / trace span derived from this one.
+- `correlationId` is a body path or header name; when set, packs guarantee that the same value flows through every outbound message and every log / trace span derived from this one. On a flow's trigger message, the flow's `tracked[]` entry named `correlationId` is authoritative: packs log and trace the value that entry's `source` resolves to, not the raw message field. This lets a flow correlate on a derived copy instead — for example a sanitized copy, when the raw field might carry data that must never reach logs — while the message still declares which business field the correlation comes from.
 - `version` + `compatibility` let packs decide whether a new deployment is safe to roll out alongside the old one. `backward` (default in most registries) means readers built for the old schema can still read new payloads.
 
 ### Classification and PII

@@ -31,6 +31,7 @@ All outputs live in a **sibling `Functions/` project** at the integration root �
 - `Functions/<FunctionName>.cs` — one file per `InvokeFunction` target collected in step 2. **Instance class** with `ILoggerFactory` constructor injection (NOT static). `[Function("<FunctionName>")]` on the method, `[WorkflowActionTrigger]` on the input parameter (imported from `Microsoft.Azure.Functions.Extensions.Workflows`). See skill §3.
 - `Functions/Models/<ModelName>.cs` — POCOs that match the input/output JSON shapes (one file per distinct input or output model; reuse across functions wherever the same shape repeats).
 - `Functions/Helpers/<Helper>.cs` — shared helpers used by more than one function (e.g. a common `SqlContext` wrapper). Optional.
+- `tests-mstest/<FunctionName>.Tests/` — the paired MSTest project for each function (Article VII), when `tasks.md` asks for one. TargetFramework `net8.0`, a `ProjectReference` to the `Functions/` csproj, and `<Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />` in an `ItemGroup` — `ImplicitUsings` does not import the MSTest namespace, so without it `[TestClass]` / `[TestMethod]` fail with CS0246.
 
 **Do NOT emit `Program.cs`.** The Logic Apps in-process host owns the process; adding `HostBuilder().ConfigureFunctionsWorkerDefaults()` switches the project to the isolated-worker model and breaks `InvokeFunction` discovery.
 

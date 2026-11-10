@@ -52,6 +52,15 @@ public sealed class SendFileActionMock : ActionMock
 var mock = new ActionMock(ctx => /* return a success or failure ActionMock */, "Send_File");
 ```
 
+> **⚠️ [VERIFIED 2026-11-06, `Microsoft.Azure.Workflows.WebJobs.Tests.Extension` 1.0.3 — the latest published]:** Option B does **not** work for `ServiceProvider` actions (SQL, Service Bus). The run fails with `UnitTestInvalidMockedOutputsError: Object reference not set to an instance of an object` **before the callback is ever invoked** — with a plain `ActionMock`, a subclass, a trivial fixed return value, or a single dynamic mock alone. Use only static mocks (Option A). Consequences:
+> - **To assert on an action's inputs, read them from the run result, not from a callback.** `TestWorkflowRun.Actions[name]` is a `TestWorkflowRunActionResult` with `Inputs` / `Outputs` / `Status` / `Error`; actions nested in a `Scope` / `If` / `Switch` are under `ChildActions`, and loop iterations (`Foreach` / `Until`) are under `Repetitions[]` (each with `IterationItem` and its own `ChildActions`). Walk that tree recursively to find every invocation of an action.
+> - **Actions inside `Switch` branches never appear in the run result** (the `Switch` itself reports `Succeeded` with null `ChildActions`); `If` branch actions do. Have the compiler emit `If` for two-way branches (`workflow-json-rules` §8.6a).
+> - **Custom `Terminate` codes throw in the test host** (`Requested value '<code>' was not found` — it parses `runError.code` as `ErrorResponseCode`). In the harness's test copy of the workflow, replace any code that is not an `ErrorResponseCode` member with `InternalServerError`; keep the production workflow's code.
+> - **Empty run results under load [VERIFIED 2026-11-09]:** `RunWorkflowAsync` intermittently returns a finished run whose `Actions` collection is empty (variables are still populated), seen on runs that end in a `Terminate` action and only in full-suite runs, never in isolation. With static mocks a re-run is deterministic, so the harness must re-run when `run.Actions` is empty — up to 4 attempts with a 2 s × attempt pause — and only then fail with a clear message.
+> - **Run test projects one at a time.** Every test assembly binds the host to port 7071, so parallel `dotnet test` over a solution fails with `address already in use`.
+> - **`Uri`-typed tokens:** Newtonsoft loads URL strings in evaluated inputs as `JTokenType.Uri`; `ToString(Formatting.None)` then keeps the quotes. Compare via `(string)token` or trim quotes for `Uri` / `Date` / `Guid`.
+> - **Per-invocation responses are not expressible** (e.g. "fail on attempt 1, succeed on attempt 2", or a different SQL row per loop iteration). Cover retry-then-succeed and exhaustion paths with separate tests whose static mock is always-fail (with action retries disabled for speed) or always-succeed, and leave the mixed sequence to the runtime E2E matrix.
+
 ## 2. `TestErrorInfo` [DOC: test-error-info-class-definition.md]
 
 - **Namespace:** `Microsoft.Azure.Workflows.UnitTesting.ErrorResponses` — **not** `...Definitions`. Add `using Microsoft.Azure.Workflows.UnitTesting.ErrorResponses;`.

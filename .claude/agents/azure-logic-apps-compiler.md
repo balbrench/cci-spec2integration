@@ -178,17 +178,19 @@ All outputs are written under the **Logic Apps project root**, which the calling
       - Blob upload: `serviceProviderId: /serviceProviders/AzureBlob`, `operationId: uploadBlob` (read: `readBlob`; trigger: `whenABlobIsAddedOrModified`).
       - **Operation IDs are authoritative in the `logic-apps-builtin-connectors` skill.** Before emitting ANY `ServiceProvider` action/trigger, confirm the `operationId` + `serviceProviderId` against that skill's quick table or `reference/Service-Specific/<connector>.md`. Built-in service-provider op IDs differ from managed-connector op IDs; a wrong ID fails at runtime/unit-test validation (`The operation ID '<x>' for service provider '<y>' is not valid`). Guessing when the skill names it is a Sev-2 finding.
       - Event Grid publish: `serviceProviderId: /serviceProviders/eventGrid`, `operationId: publishEvent`.
-   f. Each action sets `trackedProperties` by injecting:
+   f. Every **unsecured** outbound action sets `trackedProperties` by injecting:
       ```json
       {
         "trackedProperties": {
           "correlationId": "@coalesce(triggerOutputs()?['headers']?['x-correlation-id'], triggerOutputs()?['headers']?['traceparent'], guid())",
-          "runId": "@workflow().run.name",
-          "workflowName": "@workflow().name"
+          "runId": "@workflow()?['run']?['name']",
+          "workflowName": "@workflow()?['name']"
         }
       }
       ```
-      **Constraint:** `trackedProperties` can only reference the action's own inputs/outputs, trigger inputs/outputs, workflow-level parameters, or built-in functions (`guid()`, `utcNow()`, etc.). It cannot reference outputs of other actions. Never put cross-action references in `trackedProperties`.
+      **Constraint:** `trackedProperties` can only reference the action's own inputs/outputs, trigger inputs/outputs, workflow-level parameters, or built-in functions (`guid()`, `utcNow()`, etc.). It cannot reference outputs of other actions or `variables()`. Never put cross-action references in `trackedProperties`.
+      **Secured actions carry no `trackedProperties` (platform rule; the unit-test host does not catch it).** When the flow secures its trigger or actions (`runtimeConfiguration.secureData`, required for `confidential` / `restricted` data), drop `trackedProperties` from every secured action and emit one root `trackingContext` Compose carrying the correlation ids instead, plus `correlation.clientTrackingId` on the trigger. See `workflow-json-rules` §8.6c.
+      **Peek-lock flows with long work settle at the claim.** Before emitting a Service Bus peek-lock flow, total the worst-case time to its settle action; if it can exceed the lock (PT5M max), complete the message right after the idempotency claim. See `workflow-json-rules` §8.6b.
    g. Map retry policies. Priority order (highest wins): step-level `steps[].retry` → dependency-level `dependencies[<name>].retry` (for `invoke` steps) → flow-level `errorHandling.retry`. **Apply a `retryPolicy` to EVERY action that crosses a trust boundary — not just `Http`/`InvokeFunction`. This includes ALL `ServiceProvider` actions: FTP `getFtpFileContentV2`/`createFile`, FileSystem read/create, Service Bus `sendMessage`, SQL `executeQuery`/`insertRow`.** A ServiceProvider hop with no `retryPolicy` when the flow's IR declares `errorHandling.retry` is a Critical `azure-reviewer` finding (Article VI) — see `workflow-json-rules` §8.8. (Triggers take no retryPolicy.) When no retry is specified at any level, apply this default to every such external action:
       ```json
       {

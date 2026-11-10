@@ -407,7 +407,7 @@ Prefer `subscription.filter` or `selector` at the channel level to model real ro
 
 ### Observability declarations
 
-Every flow whose trigger message carries `correlationId` must wire it through `tracked[]` — otherwise packs have nothing to propagate into platform observability and `reviewer` cites Article IV.
+Every flow whose trigger message carries `correlationId` must wire it through `tracked[]` — otherwise packs have nothing to propagate into platform observability and `reviewer` cites Article IV. The `tracked[]` entry named `correlationId` overrides the message-level field for logs and traces, so when the raw field may carry data that must not be logged (a card number typed into a request id), point `source` at a sanitized copy (`context.<sanitizedType>.requestId`) and emit tracking only after the step that produces it.
 
 ```yaml
 flows:
