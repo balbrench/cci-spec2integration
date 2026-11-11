@@ -124,7 +124,7 @@ Probe each artifact. Record `done | missing | blocked | covered` and a short `su
 
 A stage is `stale` when its primary artifact exists on disk but at least one upstream source has a more recent modification time. Staleness is what lets `/status` and `/next` answer "I edited spec.md after the IR was generated — what's broken?" without the user having to remember.
 
-Dependency map (downstream stage → upstream sources whose mtimes must be older):
+**The source of truth is [`schemas/stage-dependencies.json`](../../../schemas/stage-dependencies.json).** For each stage it lists the producing command, the artifact path(s) and the upstream path(s). `scripts/refresh-status.ps1` and the VS Code extension both read it. Change the map there; the table below is a readable summary of it. A stage's artifact time is the newest of its artifact paths. Stage 10's artifact is any of `app/`, `FunctionApps/` and `adf/`, so an integration with only Function Apps or Data Factory pipelines still goes stale.
 
 | Downstream stage | Upstream sources (any newer → stale) |
 | --- | --- |
@@ -146,7 +146,7 @@ Dependency map (downstream stage → upstream sources whose mtimes must be older
 | 10 Implement             | `tasks.md`, `integration-ir.yaml` |
 | 11 Tests                 | `tasks.md`, `integration-ir.yaml` |
 
-Use `stat -c %Y <file>` (or equivalent) to compute mtimes. For a directory source (`contracts/`, `mappings/`), use the newest mtime found among its files.
+For a directory source (`contracts/`, `mappings/`), the script uses the newest mtime found among its files.
 
 When a stage is detected stale, set its `status` to `stale` (do not downgrade to `missing`) and populate a top-level `staleness` array in `status.json` listing every stale stage with the upstream that triggered it. The most-upstream stale stage drives `next` (see precedence).
 

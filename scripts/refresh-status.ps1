@@ -667,31 +667,28 @@ function Get-NewestOver {
     return $max
 }
 
+# The dependency map lives in schemas/stage-dependencies.json, shared with the
+# VS Code extension (src/stageMap.ts). Loaded once per run. If it is missing or
+# unreadable, staleness is skipped and producer commands are unknown; both are
+# logged, and the stage rows are still derived.
+$script:stageDeps = $null
+function Get-StageDeps {
+    if ($null -ne $script:stageDeps) { return $script:stageDeps }
+    $path = Join-Path $repoRoot "schemas/stage-dependencies.json"
+    try {
+        $script:stageDeps = @((Get-Content -LiteralPath $path -Raw -ErrorAction Stop | ConvertFrom-Json).stages)
+    } catch {
+        Write-Log "WARN cannot read ${path}: $($_.Exception.Message) - staleness skipped"
+        $script:stageDeps = @()
+    }
+    return $script:stageDeps
+}
+
 function Get-ProducerCommand {
     param([string]$Id, [string]$ActivePlatform)
-    switch ($Id) {
-        "1"   { "/specify" }
-        "1a"  { "/clarify" }
-        "2"   { "/model" }
-        "3"   { "/contracts" }
-        "3a"  { "/contracts" }
-        "4"   { "/map" }
-        "5"   { "/architect" }
-        "5a"  { "/review" }
-        "5b"  { "/review" }
-        "5c"  { "/review" }
-        "5d"  { "/review" }
-        "5e"  { "/review" }
-        "6"   { "/test-mappings" }
-        "6a"  { "/test-flows" }
-        "7"   { "/platform" }
-        "8"   { "/plan" }
-        "9"   { "/tasks" }
-        "10"  { "/implement-$ActivePlatform" }
-        "11"  { "/test-$ActivePlatform" }
-        "12"  { "/deploy-$ActivePlatform" }
-        default { $null }
-    }
+    $entry = Get-StageDeps | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if (-not $entry -or -not $entry.command) { return $null }
+    return $entry.command.Replace('{platform}', $ActivePlatform)
 }
 
 function Get-Staleness {
@@ -699,72 +696,50 @@ function Get-Staleness {
 
     $stale = New-Object System.Collections.ArrayList
 
-    # Stage 1 (Spec) <- specs/PRD.md. The PRD lives at the repo-root specs/ folder,
-    # not inside the integration folder, so it is checked separately (and first, so
-    # it drives `next` ahead of later stages). Greenfield only: a reverse-engineered
-    # (BizTalk) IR has a top-level `source:` block and no PRD, so skip it there.
-    $specStage = $Stages | Where-Object { $_.id -eq "1" } | Select-Object -First 1
-    if ($specStage -and $specStage.status -eq "done") {
-        $specMtime = Get-PathMtimeUtc (Join-Path $Folder "spec.md")
-        $prdMtime  = Get-PathMtimeUtc (Join-Path $RepoRoot "specs/PRD.md")
-        if ($null -ne $specMtime -and $null -ne $prdMtime -and $prdMtime -gt $specMtime) {
-            $isReverse = $false
-            $irPath = Join-Path $Folder "integration-ir.yaml"
-            if (Test-Path $irPath) {
-                $head = Get-Content $irPath -TotalCount 80 -ErrorAction SilentlyContinue
-                if ($head -match '(?im)^\s*source\s*:') { $isReverse = $true }
-            }
-            if (-not $isReverse) {
-                $specStage.status = "stale"
-                [void]$stale.Add([ordered]@{
-                    stage      = "1"
-                    stagename  = $specStage.name
-                    stalerThan = "specs/PRD.md"
-                    reason     = "specs/PRD.md edited after spec.md"
-                })
-            }
-        }
-    }
+    # A reverse-engineered (BizTalk) IR has a top-level `source:` block and no
+    # PRD, so stages marked greenfieldOnly (stage 1 <- specs/PRD.md) are skipped.
+    $isReverse = $null
 
-    # downstream stage id -> { artifact path(s); upstream source path(s) }
-    # Mirrors the dependency map in .claude/skills/pipeline-status/SKILL.md.
-    $depMap = [ordered]@{
-        "2"  = @{ artifact = @("data-model.md");                                                         upstream = @("spec.md") }
-        "3"  = @{ artifact = @("contracts/openapi.yaml","contracts/asyncapi.yaml","contracts/schemas");  upstream = @("spec.md","data-model.md") }
-        "3a" = @{ artifact = @("contract-lint-report.json");                                             upstream = @("contracts/openapi.yaml","contracts/asyncapi.yaml","contracts/schemas") }
-        "4"  = @{ artifact = @("mappings");                                                              upstream = @("spec.md","data-model.md","contracts") }
-        "5"  = @{ artifact = @("integration-ir.yaml");                                                   upstream = @("spec.md","data-model.md","contracts","mappings") }
-        "5a" = @{ artifact = @("ir-validation-report.json");                                             upstream = @("integration-ir.yaml") }
-        "5b" = @{ artifact = @("stm-drift-report.json");                                                 upstream = @("integration-ir.yaml","mappings") }
-        "5c" = @{ artifact = @("secret-scan-report.json");                                               upstream = @("integration-ir.yaml") }
-        "5d" = @{ artifact = @("pii-flow-report.json");                                                  upstream = @("integration-ir.yaml") }
-        "5e" = @{ artifact = @("review-report.json");                                                    upstream = @("spec.md","data-model.md","contracts","mappings","integration-ir.yaml") }
-        "6"  = @{ artifact = @("mapping-test-report.json");                                              upstream = @("integration-ir.yaml","mappings") }
-        "6a" = @{ artifact = @("flow-test-report.json");                                                 upstream = @("integration-ir.yaml") }
-        "8"  = @{ artifact = @("plan.md");                                                               upstream = @("spec.md","data-model.md","contracts","mappings","integration-ir.yaml") }
-        "9"  = @{ artifact = @("tasks.md");                                                              upstream = @("plan.md","integration-ir.yaml") }
-        "10" = @{ artifact = @("app");                                                                   upstream = @("tasks.md","integration-ir.yaml") }
-        "11" = @{ artifact = @("tests-mstest");                                                          upstream = @("tasks.md","integration-ir.yaml") }
-    }
-
-    foreach ($id in $depMap.Keys) {
-        $stage = $Stages | Where-Object { $_.id -eq $id } | Select-Object -First 1
+    foreach ($dep in (Get-StageDeps)) {
+        if (-not $dep.artifact) { continue }   # no artifact: the stage cannot go stale
+        $stage = $Stages | Where-Object { $_.id -eq $dep.id } | Select-Object -First 1
         if (-not $stage) { continue }
         if ($stage.status -ne "done") { continue }   # only a 'done' stage can go stale
-        $artMtime = Get-NewestOver -Folder $Folder -RelPaths $depMap[$id].artifact
+
+        if ($dep.greenfieldOnly) {
+            if ($null -eq $isReverse) {
+                $isReverse = $false
+                $irPath = Join-Path $Folder "integration-ir.yaml"
+                if (Test-Path $irPath) {
+                    $head = Get-Content $irPath -TotalCount 80 -ErrorAction SilentlyContinue
+                    if ($head -match '(?im)^\s*source\s*:') { $isReverse = $true }
+                }
+            }
+            if ($isReverse) { continue }
+        }
+
+        $artMtime = Get-NewestOver -Folder $Folder -RelPaths @($dep.artifact)
         if ($null -eq $artMtime) { continue }
+
+        # Folder-relative upstreams, then repo-relative ones (e.g. specs/PRD.md).
+        $candidates = @()
+        foreach ($up in @($dep.upstream))     { if ($up) { $candidates += ,@($up, (Join-Path $Folder $up)) } }
+        foreach ($up in @($dep.repoUpstream)) { if ($up) { $candidates += ,@($up, (Join-Path $RepoRoot $up)) } }
+
         $trigger = $null; $triggerMtime = $null
-        foreach ($up in $depMap[$id].upstream) {
-            $m = Get-NewestOver -Folder $Folder -RelPaths @($up)
+        foreach ($c in $candidates) {
+            $m = Get-PathMtimeUtc $c[1]
             if ($null -ne $m -and $m -gt $artMtime) {
-                if ($null -eq $triggerMtime -or $m -gt $triggerMtime) { $triggerMtime = $m; $trigger = $up }
+                if ($null -eq $triggerMtime -or $m -gt $triggerMtime) { $triggerMtime = $m; $trigger = $c[0] }
             }
         }
         if ($trigger) {
             $stage.status = "stale"
-            $artName = $depMap[$id].artifact[0]
+            # Name the first artifact path that exists (stage 10 may be app/, FunctionApps/ or adf/).
+            $artName = @($dep.artifact | Where-Object { Test-Path -LiteralPath (Join-Path $Folder $_) } | Select-Object -First 1)[0]
+            if (-not $artName) { $artName = @($dep.artifact)[0] }
             [void]$stale.Add([ordered]@{
-                stage      = $id
+                stage      = $dep.id
                 stagename  = $stage.name
                 stalerThan = $trigger
                 reason     = "$trigger edited after $artName"

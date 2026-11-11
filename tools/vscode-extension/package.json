@@ -519,7 +519,8 @@
     "bundle": "node esbuild.js --production",
     "compile": "npm run sync-assets && node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "package": "npm run sync-assets && vsce package --no-dependencies"
+    "package": "npm run sync-assets && vsce package --no-dependencies",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"test/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

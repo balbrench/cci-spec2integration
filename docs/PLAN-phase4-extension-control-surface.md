@@ -52,7 +52,7 @@ This shapes every change below. Per [`src/chatBridge.ts`](../tools/vscode-extens
 - **Completion is reported, not guessed.** A `Stop` http hook posts to a listener inside the extension (Change 0b), which replaces inferring completion from `status.json` changing. The `status.json` watcher stays as the fallback when the extension isn't running or the hook isn't installed.
 - **A pre-write gate is extension code after all.** A `PreToolUse` http hook asks the extension's listener, which can show its own diff and answer allow, deny or ask (Change 3). Writes made through shell commands carry no target path, so the filesystem diff review stays as the safety net.
 - **Checkpoint and revert stay git- and filesystem-based** around a dispatched command (Change 2). The hooks make the "after" moment precise.
-- **The bridge switches to the documented deep link first**, keeping the internal command only as a fallback.
+- **The bridge switches to the documented deep link first**, keeping the internal command only as a fallback. It already reuses one session per pipeline run through `?session=` (`src/session.ts`, which creates the session with a tool-free `claude -p` call).
 
 **Running stages headlessly is deferred.** The Agent SDK or `claude -p` would let the extension run a stage, stream it in its own UI, and decide on writes in code. But the SDK docs require an API key or Bedrock / Vertex / Foundry credentials, and do not allow third parties to offer claude.ai subscription login without Anthropic's approval. Every user would need their own API key. Whether an extension invoking the user's own installed `claude -p` falls under the same rule is not documented; settle that before building it. If it goes ahead, it would be an opt-in "run in background" for stages that need no input (`/review`, `/test-mappings`, `/test-flows`, `/status`).
 
@@ -91,7 +91,9 @@ The graph panel would add a third copy in TypeScript. Three hand-maintained copi
 
 **Gap to fix while moving it.** Stage 10's artifact in `$depMap` is only `app`. Since v1.1.0, stage 10 also counts Function Apps (`FunctionApps/`) and ADF pipelines (`adf/`), so an integration with no `app/` folder is never marked stale. List all three artifact roots in the JSON. This is a deliberate behaviour change, so the before/after comparison below must expect it.
 
-**Change.** Put the map in one data file, `schemas/stage-dependencies.json`: each stage id with its name, its producing slash command, its artifact path(s), and its upstream path(s).
+**Change.** Put the map in one data file, `schemas/stage-dependencies.json`: each stage id with its producing slash command (`{platform}` for the pack-specific ones), its artifact path(s), its upstream path(s), and repo-relative upstreams (`specs/PRD.md`, greenfield only). Stage names stay in the `status.json` rows, which the graph reads.
+
+**Implemented** (branch `phase4-extension-control-surface`): the JSON; `refresh-status.ps1` reading it for staleness and producer commands; `src/stageMap.ts` with `loadStageMap`, `producerCommand` and `stageEdges`; and the skill pointing at it. The extension's `STAGE_CMD` table in `src/commandCatalog.ts` is still a hand-kept copy, now guarded by a unit test that fails if it disagrees with the map; Change 1 replaces it with the map.
 
 | File | Change |
 |---|---|
@@ -109,6 +111,8 @@ The extension has no automated tests today: no `test` script and no test folder.
 - Add a `test` script using Node's built-in runner (`node --test`), with no new dependencies.
 - Keep the git and graph logic in modules that **don't import `vscode`** (`checkpointCore.ts`, `stageGraphModel.ts`) so they can be tested in plain Node. The `vscode`-facing code stays a thin layer over them.
 - Tests create a temporary git repository, run checkpoint/revert against it, and assert on the resulting files.
+
+**Implemented:** `npm test` runs `node --test "test/**/*.test.ts"` using Node's built-in TypeScript type stripping (Node 22.18+), so tested modules must use erasable syntax only (no enums, namespaces or parameter properties) and are imported with their `.ts` extension. The release workflow now uses Node 22 and runs the tests before packaging. `test/**` is excluded from the `.vsix`.
 
 ---
 
@@ -140,9 +144,9 @@ Notes:
 
 **When the extension isn't running.** An `http` hook to a dead port fails. For `Stop` and `SubagentStop` that is harmless. For `PreToolUse` it matters: the gate is either skipped or, with `onFailure: "block"`, blocks every write. Change 3 handles this.
 
-**Deep links in `chatBridge`.**
-- Make the documented `vscode://anthropic.claude-code/open?prompt=` link the first method. Keep the internal command as a fallback only, since it's undocumented.
-- Record the `session_id` from the first `Stop` after a dispatch on the stage row. "Open this stage's session" then uses `?session=<id>`.
+**Deep links in `chatBridge`.** [`src/session.ts`](../tools/vscode-extension/src/session.ts) already keeps a whole pipeline run in one chat: it creates a session with a tool-free `claude -p` call, stores its id, and `chatBridge` reopens it with `?session=<id>`. Build on that rather than replacing it:
+- Make the documented `vscode://anthropic.claude-code/open?prompt=` link (with `session=` when one is stored) the first method. Keep the internal command as a fallback only, since it's undocumented.
+- Match `Stop` events to dispatches by the stored `session_id`. If the user runs a stage in a different chat, the `Stop` carries another id; record it on the stage row so "Open this stage's session" reopens the right one.
 - The prompt is pre-filled, not submitted, so the user presses Enter. Say so in the notification.
 
 ### Files
@@ -151,7 +155,7 @@ Notes:
 |---|---|
 | `src/hookServer.ts` | **New.** Localhost listener, token check, event routing. A small core with no `vscode` import, so it can be unit-tested. |
 | `src/hookInstall.ts` | **New.** Install or remove the hook entries in `.claude/settings.local.json`, preserving any other keys there. |
-| `src/chatBridge.ts` | Documented deep link first; `?session=` support. |
+| `src/chatBridge.ts` | Documented deep link first (it already supports `?session=` through `src/session.ts`). |
 | `src/extension.ts`, `package.json` | Commands `spec2integration.installHooks` / `removeHooks`; setting `spec2integration.hooks.enabled`. |
 | `CLAUDE.md` | Describe the optional extension hooks next to the existing hook description. |
 
