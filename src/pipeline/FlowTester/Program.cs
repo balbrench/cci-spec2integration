@@ -44,7 +44,7 @@ internal static class FlowTesterProgram
         {
             var blockedReport = CreateBlockedReport(
                 "RUNTIME_MISSING",
-                "flow tests not executed — node or jsonata package not on PATH. Install Node.js and run `npm install -g jsonata` then retry.");
+                "flow tests not executed — node or the jsonata package could not be found. Install Node.js and jsonata (`npm install -g jsonata` or `npm install jsonata` in the repo), then retry.");
 
             await WriteReportsAsync(integrationFolder, blockedReport);
             PrintSummary(blockedReport);
@@ -81,6 +81,9 @@ internal static class FlowTesterProgram
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
+            // Unquoted scalars bound to `object` (test context values, rule defaults)
+            // become bool / number / null as YAML intends; quoted ones stay strings.
+            .WithAttemptingUnquotedStringTypeDeserialization()
             .Build();
 
         return deserializer.Deserialize<IntegrationDocument>(yaml)
@@ -190,16 +193,62 @@ internal sealed class FlowTestRunner
         {
             var payload = await LoadJsonAsync(ResolveRelativePath(test.Trigger?.Path));
             var context = JsonNodeFactory.ObjectFromDictionary(test.Context);
-            var requestHeaders = test.Trigger?.Headers ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var state = new ExecutionState(context, requestHeaders, test.Faults ?? [], _document.ErrorHandling, flow.ErrorHandling);
+            var requestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var pinnedKeys = new HashSet<string>(test.Context?.Keys ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
 
-            var entryStep = flow.Steps?.FirstOrDefault()?.Id;
-            if (string.IsNullOrWhiteSpace(entryStep))
+            // A trigger fixture may be the raw message or a run envelope { body, headers, context }
+            // (mapping-test fixtures are envelopes). An envelope is unwrapped: body becomes the
+            // trigger message; its headers and context sit under the test's own values.
+            if (IsEnvelope(payload))
+            {
+                var envelope = (JsonObject)payload!;
+                if (envelope["headers"] is JsonObject envelopeHeaders)
+                {
+                    foreach (var header in envelopeHeaders)
+                    {
+                        requestHeaders[header.Key] = header.Value?.ToString() ?? string.Empty;
+                    }
+                }
+
+                if (envelope["context"] is JsonObject envelopeContext)
+                {
+                    foreach (var contextValue in envelopeContext)
+                    {
+                        if (!context.ContainsKey(contextValue.Key))
+                        {
+                            context[contextValue.Key] = contextValue.Value?.DeepClone();
+                            pinnedKeys.Add(contextValue.Key);
+                        }
+                    }
+                }
+
+                payload = envelope["body"]?.DeepClone();
+            }
+
+            foreach (var header in test.Trigger?.Headers ?? [])
+            {
+                requestHeaders[header.Key] = header.Value;
+            }
+
+            var state = new ExecutionState(context, requestHeaders, test.Faults ?? [], _document.ErrorHandling, flow.ErrorHandling);
+            state.PinnedContextKeys.UnionWith(pinnedKeys);
+
+            var entry = flow.Steps?.FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(entry?.Id))
             {
                 return Fail(flow.Name, test.Name, "flow has no entry step.");
             }
 
-            await ExecuteStepAsync(flow, entryStep!, payload, state);
+            state.TriggerMessage = payload?.DeepClone();
+            state.TriggerType = entry!.Type == "receive" ? ResolveChannelMessage(entry.Channel) : null;
+            try
+            {
+                await ExecuteStepAsync(flow, entry.Id!, payload, state.TriggerType, state);
+            }
+            catch (UnhandledStepException unhandled)
+            {
+                await DeadLetterRunAsync(flow, unhandled, state);
+            }
 
             var failure = await ValidateExpectationsAsync(flow, test, state);
             return failure is null
@@ -279,7 +328,11 @@ internal sealed class FlowTestRunner
         return null;
     }
 
-    private async Task ExecuteStepAsync(FlowDefinition flow, string stepId, JsonNode? currentMessage, ExecutionState state)
+    // Step execution implements the run-envelope rules in docs/ir-spec.md: expressions see
+    // { body, headers, context }; produced messages are kept at context.<lowerCamel(type)>;
+    // a failed step retries, then follows onError (fallback / continue / dlq); anything
+    // unhandled propagates to the run, which dead-letters the trigger message.
+    private async Task ExecuteStepAsync(FlowDefinition flow, string stepId, JsonNode? currentMessage, string? currentType, ExecutionState state)
     {
         var steps = flow.Steps?.Where(step => !string.IsNullOrWhiteSpace(step.Id)).ToDictionary(step => step.Id!, StringComparer.Ordinal)
             ?? throw new InvalidOperationException($"flow '{flow.Name}' has no steps.");
@@ -291,108 +344,202 @@ internal sealed class FlowTestRunner
 
         state.ReachedSteps.Add(step.Id!);
 
-        var attempts = 0;
-        while (true)
+        // Control-flow steps route the current message; they have no attempts of their own.
+        switch (step.Type)
         {
-            attempts++;
-            state.StepAttempts[step.Id!] = attempts;
+            case "filter":
+                if (await EvaluateBooleanAsync(step.Predicate, currentMessage, state))
+                {
+                    await ExecuteNextAsync(flow, step.Next, currentMessage, currentType, state);
+                }
 
+                return;
+
+            case "router":
+                await ExecuteRouterAsync(flow, step, currentMessage, currentType, state);
+                return;
+
+            case "recipientList":
+                foreach (var target in step.Targets ?? [])
+                {
+                    await ExecuteStepAsync(flow, target, currentMessage?.DeepClone(), currentType, state);
+                }
+
+                await ExecuteNextAsync(flow, step.Next, currentMessage, currentType, state);
+                return;
+
+            case "splitter":
+                await ExecuteSplitterAsync(flow, step, currentMessage, state);
+                return;
+        }
+
+        var errorHandling = step.ErrorHandling;
+        var attemptMappingRef = errorHandling?.AttemptMappingRef;
+        var maxAttempts = (step.ErrorHandling?.Retry?.Count ?? step.Retry?.Count
+            ?? ResolveRetryCount(null, flow.ErrorHandling, _document.ErrorHandling)) + 1;
+        var record = currentMessage;
+        var recordType = currentType;
+        StepOutcome? outcome = null;
+        Exception? lastError = null;
+
+        for (var attempt = 1; ; attempt++)
+        {
+            state.StepAttempts[step.Id!] = attempt;
+            lastError = null;
             try
             {
+                if (step.Type == "invoke" && !string.IsNullOrWhiteSpace(step.Dependency))
+                {
+                    // Record what each attempt sends, so tests can assert the wire payload.
+                    var request = OutboundPayload(step, currentMessage, state);
+                    state.EmittedMessages.Add(new EmittedMessage($"{step.Dependency}.{step.OperationId}", request?.DeepClone(), NewHeaders()));
+                }
+
                 MaybeInjectFault(step.Id!, state);
-
-                switch (step.Type)
-                {
-                    case "receive":
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    case "transform":
-                    case "enrich":
-                        var transformed = await ApplyMappingAsync(step.MappingRef, currentMessage, state.Context);
-                        await ExecuteNextAsync(flow, step.Next, transformed, state);
-                        return;
-
-                    case "filter":
-                        var passed = await EvaluateBooleanAsync(step.Predicate, currentMessage, state.Context);
-                        if (passed)
-                        {
-                            await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        }
-
-                        return;
-
-                    case "router":
-                        await ExecuteRouterAsync(flow, step, currentMessage, state);
-                        return;
-
-                    case "recipientList":
-                        foreach (var target in step.Targets ?? [])
-                        {
-                            await ExecuteStepAsync(flow, target, currentMessage?.DeepClone(), state);
-                        }
-
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    case "splitter":
-                        await ExecuteSplitterAsync(flow, step, currentMessage, state);
-                        return;
-
-                    case "send":
-                        state.EmittedMessages.Add(CreateEmittedMessage(step.Channel, currentMessage, state));
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    case "invoke":
-                        var response = ResolveInvokeResponse(step, state.Context);
-                        await ExecuteNextAsync(flow, step.Next, response, state);
-                        return;
-
-                    case "claimCheck":
-                        state.EmittedMessages.Add(new EmittedMessage(step.Store ?? string.Empty, currentMessage?.DeepClone(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    case "wireTap":
-                        state.EmittedMessages.Add(new EmittedMessage(step.Target ?? string.Empty, currentMessage?.DeepClone(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    case "throttler":
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    case "aggregator":
-                    case "scatterGather":
-                    case "saga":
-                    case "resequencer":
-                        await ExecuteNextAsync(flow, step.Next, currentMessage, state);
-                        return;
-
-                    default:
-                        throw new InvalidOperationException($"unsupported step type '{step.Type}' in flow '{flow.Name}'.");
-                }
+                outcome = await ExecuteActionAsync(step, currentMessage, currentType, state);
             }
-            catch (Exception exception)
+            catch (Exception exception) when (exception is not UnhandledStepException)
             {
-                var retryCount = ResolveRetryCount(step.ErrorHandling, flow.ErrorHandling, _document.ErrorHandling);
-                if (attempts <= retryCount)
+                lastError = exception;
+            }
+
+            if (!string.IsNullOrWhiteSpace(attemptMappingRef))
+            {
+                state.Context["attemptResult"] = lastError is null ? "succeeded" : "failed";
+                if (!state.PinnedContextKeys.Contains("attemptedAt"))
                 {
-                    continue;
+                    state.Context["attemptedAt"] = DateTimeOffset.UtcNow.ToString("o");
                 }
 
-                if (TryResolveDlq(step.ErrorHandling, flow.ErrorHandling, _document.ErrorHandling, out var dlqChannel))
-                {
-                    state.EmittedMessages.Add(new EmittedMessage(dlqChannel!, currentMessage?.DeepClone(), new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
-                    state.LastError = exception.Message;
-                    return;
-                }
+                var mapped = await ApplyMappingAsync(attemptMappingRef, record, recordType, state, useGivenInput: true);
+                record = mapped.Body;
+                recordType = mapped.Type;
+            }
 
-                throw;
+            if (lastError is null || IsNonRetryable(lastError, errorHandling) || attempt >= maxAttempts)
+            {
+                break;
             }
         }
+
+        if (lastError is null)
+        {
+            var (body, type) = string.IsNullOrWhiteSpace(attemptMappingRef)
+                ? (outcome!.Body, outcome.Type)
+                : (record, recordType);
+            await ExecuteNextAsync(flow, step.Next, body, type, state);
+            return;
+        }
+
+        var exhaustedBody = string.IsNullOrWhiteSpace(attemptMappingRef) ? currentMessage : record;
+        var exhaustedType = string.IsNullOrWhiteSpace(attemptMappingRef) ? currentType : recordType;
+        var onError = errorHandling?.OnError
+            ?? (string.IsNullOrWhiteSpace(errorHandling?.Fallback) ? "dlq" : "fallback");
+
+        if (onError == "fallback" && !string.IsNullOrWhiteSpace(errorHandling?.Fallback))
+        {
+            await ExecuteStepAsync(flow, errorHandling!.Fallback!, exhaustedBody, exhaustedType, state);
+            return;
+        }
+
+        if (onError == "continue")
+        {
+            await ExecuteNextAsync(flow, step.Next, exhaustedBody, exhaustedType, state);
+            return;
+        }
+
+        if (onError == "dlq" && !string.IsNullOrWhiteSpace(errorHandling?.Dlq?.Channel))
+        {
+            // Step-level DLQ: the failing step's input is parked; the run ends there.
+            state.EmittedMessages.Add(new EmittedMessage(errorHandling!.Dlq!.Channel!, exhaustedBody?.DeepClone(), NewHeaders()));
+            state.LastError = lastError.Message;
+            return;
+        }
+
+        throw new UnhandledStepException(step.Id!, lastError);
     }
+
+    private sealed record StepOutcome(JsonNode? Body, string? Type);
+
+    private async Task<StepOutcome> ExecuteActionAsync(StepDefinition step, JsonNode? currentMessage, string? currentType, ExecutionState state)
+    {
+        switch (step.Type)
+        {
+            case "receive":
+                var triggerType = ResolveChannelMessage(step.Channel);
+                RecordHistory(triggerType, currentMessage, state);
+                return new StepOutcome(currentMessage, triggerType ?? currentType);
+
+            case "transform":
+                return await ApplyMappingAsync(step.MappingRef, currentMessage, currentType, state);
+
+            case "enrich":
+            case "invoke":
+            {
+                var hasDependency = !string.IsNullOrWhiteSpace(step.Dependency);
+                var hasMapping = !string.IsNullOrWhiteSpace(step.MappingRef);
+                if (step.Type == "enrich" && !hasDependency && !hasMapping)
+                {
+                    return new StepOutcome(currentMessage, currentType);
+                }
+
+                JsonNode? result = hasDependency ? ResolveInvokeResponse(step, state.Context) : currentMessage;
+                string? resultType = null;
+                if (hasDependency && !string.IsNullOrWhiteSpace(step.ResultKey))
+                {
+                    state.Context[step.ResultKey!] = result?.DeepClone();
+                }
+
+                if (hasMapping)
+                {
+                    var mapped = await ApplyMappingAsync(step.MappingRef, currentMessage, currentType, state);
+                    result = mapped.Body;
+                    resultType = mapped.Type;
+                }
+
+                if (!string.IsNullOrWhiteSpace(step.ResultKey))
+                {
+                    state.Context[step.ResultKey!] = result?.DeepClone();
+                    return new StepOutcome(currentMessage, currentType);
+                }
+
+                return new StepOutcome(result, resultType);
+            }
+
+            case "send":
+                state.EmittedMessages.Add(CreateEmittedMessage(step.Channel, OutboundPayload(step, currentMessage, state), state));
+                return new StepOutcome(currentMessage, currentType);
+
+            case "claimCheck":
+                state.EmittedMessages.Add(new EmittedMessage(step.Store ?? string.Empty, currentMessage?.DeepClone(), NewHeaders()));
+                return new StepOutcome(currentMessage, currentType);
+
+            case "wireTap":
+                state.EmittedMessages.Add(new EmittedMessage(step.Target ?? string.Empty, currentMessage?.DeepClone(), NewHeaders()));
+                return new StepOutcome(currentMessage, currentType);
+
+            case "throttler":
+            case "aggregator":
+            case "scatterGather":
+            case "saga":
+            case "resequencer":
+                return new StepOutcome(currentMessage, currentType);
+
+            default:
+                throw new InvalidOperationException($"unsupported step type '{step.Type}'.");
+        }
+    }
+
+    private static Dictionary<string, string> NewHeaders() => new(StringComparer.OrdinalIgnoreCase);
+
+    // Run-envelope rule 5a: payloadKey sends context.<payloadKey> instead of the current body.
+    private static JsonNode? OutboundPayload(StepDefinition step, JsonNode? currentMessage, ExecutionState state) =>
+        string.IsNullOrWhiteSpace(step.PayloadKey) ? currentMessage : state.Context[step.PayloadKey!];
+
+    private static bool IsEnvelope(JsonNode? payload) =>
+        payload is JsonObject envelope
+        && envelope.ContainsKey("body")
+        && envelope.All(property => property.Key is "body" or "headers" or "context");
 
     private static int ResolveRetryCount(ErrorHandlingDefinition? stepErrorHandling, ErrorHandlingDefinition? flowErrorHandling, ErrorHandlingDefinition? documentErrorHandling)
     {
@@ -402,13 +549,10 @@ internal sealed class FlowTestRunner
             ?? 0;
     }
 
-    private static bool TryResolveDlq(ErrorHandlingDefinition? stepErrorHandling, ErrorHandlingDefinition? flowErrorHandling, ErrorHandlingDefinition? documentErrorHandling, out string? channel)
+    private static bool IsNonRetryable(Exception error, ErrorHandlingDefinition? errorHandling)
     {
-        channel = stepErrorHandling?.Dlq?.Channel
-            ?? flowErrorHandling?.Dlq?.Channel
-            ?? documentErrorHandling?.Dlq?.Channel;
-
-        return !string.IsNullOrWhiteSpace(channel);
+        var code = error is FaultInjectedException fault ? fault.Code : error.Message;
+        return errorHandling?.NonRetryableErrors?.Contains(code, StringComparer.Ordinal) == true;
     }
 
     private void MaybeInjectFault(string stepId, ExecutionState state)
@@ -423,23 +567,37 @@ internal sealed class FlowTestRunner
         state.FaultAttempts[stepId] = attempts;
         if (attempts > matchingFault.AfterAttempts)
         {
-            throw new InvalidOperationException(matchingFault.ErrorCode ?? $"fault injected for step '{stepId}'.");
+            // `error` is the schema field; `errorCode` is accepted for older IRs.
+            throw new FaultInjectedException(matchingFault.Error ?? matchingFault.ErrorCode ?? $"fault injected for step '{stepId}'.");
         }
     }
 
-    private async Task ExecuteRouterAsync(FlowDefinition flow, StepDefinition step, JsonNode? currentMessage, ExecutionState state)
+    private async Task DeadLetterRunAsync(FlowDefinition flow, UnhandledStepException unhandled, ExecutionState state)
+    {
+        var dlq = flow.ErrorHandling?.Dlq ?? _document.ErrorHandling?.Dlq;
+        if (string.IsNullOrWhiteSpace(dlq?.Channel))
+        {
+            throw unhandled.InnerException ?? unhandled;
+        }
+
+        state.Context["failedStep"] = unhandled.StepId;
+        var body = state.TriggerMessage?.DeepClone();
+        if (!string.IsNullOrWhiteSpace(dlq!.MappingRef))
+        {
+            body = (await ApplyMappingAsync(dlq.MappingRef, state.TriggerMessage, state.TriggerType, state, useGivenInput: true)).Body;
+        }
+
+        state.EmittedMessages.Add(new EmittedMessage(dlq.Channel!, body, NewHeaders()));
+        state.LastError = unhandled.InnerException?.Message ?? unhandled.Message;
+    }
+
+    private async Task ExecuteRouterAsync(FlowDefinition flow, StepDefinition step, JsonNode? currentMessage, string? currentType, ExecutionState state)
     {
         foreach (var route in step.Routes ?? [])
         {
-            if (route.Default == true)
+            if (route.Default == true || await EvaluateBooleanAsync(route.When, currentMessage, state))
             {
-                await ExecuteNextAsync(flow, route.Next, currentMessage, state);
-                return;
-            }
-
-            if (await EvaluateBooleanAsync(route.When, currentMessage, state.Context))
-            {
-                await ExecuteNextAsync(flow, route.Next, currentMessage, state);
+                await ExecuteNextAsync(flow, route.Next, currentMessage, currentType, state);
                 return;
             }
         }
@@ -454,21 +612,24 @@ internal sealed class FlowTestRunner
 
         foreach (var item in array)
         {
-            await ExecuteNextAsync(flow, step.Next, item?.DeepClone(), state);
+            await ExecuteNextAsync(flow, step.Next, item?.DeepClone(), null, state);
         }
     }
 
-    private async Task ExecuteNextAsync(FlowDefinition flow, string? nextStepId, JsonNode? currentMessage, ExecutionState state)
+    private async Task ExecuteNextAsync(FlowDefinition flow, string? nextStepId, JsonNode? currentMessage, string? currentType, ExecutionState state)
     {
         if (string.IsNullOrWhiteSpace(nextStepId))
         {
             return;
         }
 
-        await ExecuteStepAsync(flow, nextStepId!, currentMessage, state);
+        await ExecuteStepAsync(flow, nextStepId!, currentMessage, currentType, state);
     }
 
-    private async Task<JsonNode?> ApplyMappingAsync(string? mappingRef, JsonNode? currentMessage, JsonObject context)
+    // Mapping input (run-envelope rule 3): the current message when it is of the mapping's
+    // source type or of unknown type (e.g. an invoke response), otherwise the latest message
+    // of that type from the run history. contentPath: body wraps it in the envelope.
+    private async Task<StepOutcome> ApplyMappingAsync(string? mappingRef, JsonNode? currentMessage, string? currentType, ExecutionState state, bool useGivenInput = false)
     {
         if (string.IsNullOrWhiteSpace(mappingRef))
         {
@@ -484,23 +645,90 @@ internal sealed class FlowTestRunner
             ? mapping.Expression!
             : JsonataRuleSynthesizer.Synthesize(mapping.Rules ?? []);
 
-        return await _jsonataEvaluator.EvaluateAsync(expression, currentMessage, context);
+        var sourceType = mapping.Source?.MessageRef;
+        var message = currentMessage;
+        if (!useGivenInput
+            && !string.IsNullOrWhiteSpace(sourceType)
+            && currentType is not null
+            && !string.Equals(currentType, sourceType, StringComparison.Ordinal)
+            && state.Context[ContextKey(sourceType!)] is JsonNode prior)
+        {
+            message = prior.DeepClone();
+        }
+
+        var input = string.Equals(mapping.Source?.ContentPath, "body", StringComparison.Ordinal)
+            ? BuildEnvelope(message, state)
+            : message;
+
+        var output = await _jsonataEvaluator.EvaluateAsync(expression, input, state.Context);
+        var targetType = mapping.Target?.MessageRef;
+        RecordHistory(targetType, output, state);
+        return new StepOutcome(output, targetType);
     }
 
-    private async Task<bool> EvaluateBooleanAsync(ExpressionDefinition? expression, JsonNode? currentMessage, JsonObject context)
+    private async Task<bool> EvaluateBooleanAsync(ExpressionDefinition? expression, JsonNode? currentMessage, ExecutionState state)
     {
         if (expression is null || string.IsNullOrWhiteSpace(expression.Expression))
         {
             return false;
         }
 
-        var value = await _jsonataEvaluator.EvaluateAsync(expression.Expression!, currentMessage, context);
+        var value = await _jsonataEvaluator.EvaluateAsync(expression.Expression!, BuildEnvelope(currentMessage, state), state.Context);
         return value switch
         {
             JsonValue jsonValue when jsonValue.TryGetValue<bool>(out var booleanValue) => booleanValue,
             JsonValue jsonValue when jsonValue.TryGetValue<string>(out var stringValue) && bool.TryParse(stringValue, out var parsed) => parsed,
             _ => false,
         };
+    }
+
+    private static JsonObject BuildEnvelope(JsonNode? body, ExecutionState state)
+    {
+        var headers = new JsonObject();
+        foreach (var header in state.RequestHeaders)
+        {
+            headers[header.Key] = header.Value;
+        }
+
+        return new JsonObject
+        {
+            ["body"] = body?.DeepClone(),
+            ["headers"] = headers,
+            ["context"] = state.Context.DeepClone(),
+        };
+    }
+
+    private string? ResolveChannelMessage(string? channelName) =>
+        !string.IsNullOrWhiteSpace(channelName) && _channels.TryGetValue(channelName!, out var channel)
+            ? channel.SchemaRef
+            : null;
+
+    private static void RecordHistory(string? messageType, JsonNode? message, ExecutionState state)
+    {
+        if (!string.IsNullOrWhiteSpace(messageType))
+        {
+            state.Context[ContextKey(messageType!)] = message?.DeepClone();
+        }
+    }
+
+    // PaymentRequest -> paymentRequest, GatewayCallback-Received -> gatewayCallbackReceived.
+    internal static string ContextKey(string messageType)
+    {
+        var parts = System.Text.RegularExpressions.Regex.Split(messageType, "[^A-Za-z0-9]+")
+            .Where(part => part.Length > 0)
+            .ToArray();
+        if (parts.Length == 0)
+        {
+            return messageType;
+        }
+
+        var key = new StringBuilder(char.ToLowerInvariant(parts[0][0]) + parts[0][1..]);
+        foreach (var part in parts.Skip(1))
+        {
+            key.Append(char.ToUpperInvariant(part[0])).Append(part[1..]);
+        }
+
+        return key.ToString();
     }
 
     private static JsonNode? ResolveInvokeResponse(StepDefinition step, JsonObject context)
@@ -630,7 +858,9 @@ internal static class HeaderResolver
 
 internal static class JsonNodeFactory
 {
-    public static JsonObject ObjectFromDictionary(Dictionary<string, string>? values)
+    // Flow-test context values may be nested (the IR schema allows any JSON value),
+    // e.g. `<Dependency>: { <operationId>: <mock response> }` read by invoke steps.
+    public static JsonObject ObjectFromDictionary(Dictionary<string, object?>? values)
     {
         var result = new JsonObject();
         if (values is null)
@@ -640,7 +870,27 @@ internal static class JsonNodeFactory
 
         foreach (var pair in values)
         {
-            result[pair.Key] = pair.Value;
+            result[pair.Key] = FromYaml(pair.Value);
+        }
+
+        return result;
+    }
+
+    private static JsonNode? FromYaml(object? value) => value switch
+    {
+        null => null,
+        string text => JsonValue.Create(text),
+        IDictionary<object, object?> map => ObjectFromMap(map),
+        IEnumerable<object?> items => new JsonArray(items.Select(FromYaml).ToArray()),
+        _ => JsonSerializer.SerializeToNode(value),
+    };
+
+    private static JsonObject ObjectFromMap(IDictionary<object, object?> map)
+    {
+        var result = new JsonObject();
+        foreach (var pair in map)
+        {
+            result[Convert.ToString(pair.Key, System.Globalization.CultureInfo.InvariantCulture)!] = FromYaml(pair.Value);
         }
 
         return result;
@@ -757,6 +1007,7 @@ internal sealed class JsonataEvaluator
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            NodeEnvironment.Apply(startInfo);
 
             using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("failed to start node process.");
             var stdout = await process.StandardOutput.ReadToEndAsync();
@@ -915,6 +1166,58 @@ internal static class MarkdownReportWriter
     private static string EscapeCell(string value) => value.Replace("|", "\\|");
 }
 
+// Node's require() does not search the global npm folder, so a jsonata
+// installed with `npm install -g jsonata` is invisible to child node
+// processes. Append `npm root -g` to NODE_PATH; a local node_modules still
+// wins because require() checks it before NODE_PATH.
+internal static class NodeEnvironment
+{
+    private static readonly Lazy<string?> GlobalRoot = new(ResolveGlobalRoot);
+
+    public static void Apply(ProcessStartInfo startInfo)
+    {
+        var globalRoot = GlobalRoot.Value;
+        if (string.IsNullOrEmpty(globalRoot))
+        {
+            return;
+        }
+
+        var existing = Environment.GetEnvironmentVariable("NODE_PATH");
+        startInfo.Environment["NODE_PATH"] = string.IsNullOrEmpty(existing)
+            ? globalRoot
+            : existing + Path.PathSeparator + globalRoot;
+    }
+
+    private static string? ResolveGlobalRoot()
+    {
+        try
+        {
+            // npm is a .cmd shim on Windows, which Process.Start cannot launch directly.
+            var startInfo = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo("cmd.exe") { ArgumentList = { "/c", "npm", "root", "-g" } }
+                : new ProcessStartInfo("npm") { ArgumentList = { "root", "-g" } };
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
+            startInfo.UseShellExecute = false;
+            startInfo.CreateNoWindow = true;
+
+            using var process = Process.Start(startInfo);
+            if (process is null)
+            {
+                return null;
+            }
+
+            var output = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit(10_000);
+            return process.ExitCode == 0 && Directory.Exists(output) ? output : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+
 internal sealed class RuntimePrerequisite
 {
     public bool Success { get; private init; }
@@ -944,6 +1247,10 @@ internal sealed class RuntimePrerequisite
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            if (fileName == "node")
+            {
+                NodeEnvironment.Apply(startInfo);
+            }
 
             using var process = Process.Start(startInfo);
             if (process is null)
@@ -987,6 +1294,20 @@ internal sealed class ExecutionState
     public Dictionary<string, int> StepAttempts { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, int> FaultAttempts { get; } = new(StringComparer.Ordinal);
     public string? LastError { get; set; }
+    public JsonNode? TriggerMessage { get; set; }
+    public string? TriggerType { get; set; }
+    public HashSet<string> PinnedContextKeys { get; } = new(StringComparer.Ordinal);
+}
+
+internal sealed class UnhandledStepException(string stepId, Exception inner)
+    : Exception($"step '{stepId}' failed: {inner.Message}", inner)
+{
+    public string StepId { get; } = stepId;
+}
+
+internal sealed class FaultInjectedException(string code) : Exception(code)
+{
+    public string Code { get; } = code;
 }
 
 internal sealed class FlowTestReport
@@ -1046,6 +1367,14 @@ internal sealed class MappingDefinition
     public string? Engine { get; set; }
     public string? Expression { get; set; }
     public List<MappingRuleDefinition>? Rules { get; set; }
+    public MappingEndDefinition? Source { get; set; }
+    public MappingEndDefinition? Target { get; set; }
+}
+
+internal sealed class MappingEndDefinition
+{
+    public string? MessageRef { get; set; }
+    public string? ContentPath { get; set; }
 }
 
 internal sealed class MappingRuleDefinition
@@ -1078,6 +1407,9 @@ internal sealed class StepDefinition
     public string? OperationId { get; set; }
     public string? Store { get; set; }
     public string? Target { get; set; }
+    public string? ResultKey { get; set; }
+    public string? PayloadKey { get; set; }
+    public RetryDefinition? Retry { get; set; }
     public ErrorHandlingDefinition? ErrorHandling { get; set; }
 }
 
@@ -1098,7 +1430,7 @@ internal sealed class FlowDefinitionTest
 {
     public string Name { get; set; } = string.Empty;
     public TriggerDefinition? Trigger { get; set; }
-    public Dictionary<string, string>? Context { get; set; }
+    public Dictionary<string, object?>? Context { get; set; }
     public List<ExpectationDefinition>? Expect { get; set; }
     public List<TestFaultDefinition>? Faults { get; set; }
 }
@@ -1133,6 +1465,7 @@ internal sealed class ErrorExpectationDefinition
 internal sealed class TestFaultDefinition
 {
     public string? Step { get; set; }
+    public string? Error { get; set; }
     public string? ErrorCode { get; set; }
     public int AfterAttempts { get; set; }
 }
@@ -1141,6 +1474,10 @@ internal sealed class ErrorHandlingDefinition
 {
     public RetryDefinition? Retry { get; set; }
     public DlqDefinition? Dlq { get; set; }
+    public string? Fallback { get; set; }
+    public string? OnError { get; set; }
+    public List<string>? NonRetryableErrors { get; set; }
+    public string? AttemptMappingRef { get; set; }
 }
 
 internal sealed class RetryDefinition
@@ -1153,4 +1490,5 @@ internal sealed class RetryDefinition
 internal sealed class DlqDefinition
 {
     public string? Channel { get; set; }
+    public string? MappingRef { get; set; }
 }

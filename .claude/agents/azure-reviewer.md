@@ -41,6 +41,7 @@ Exactly one file: `<integration-folder>/azure-review.md` (at the integration-fol
 - Every outbound `send` action has a DLQ branch via `runAfter`.
 - Stateful workflows are used where required by NFRs.
 - Stateful vs Stateless choice is consistent with the decision matrix in `eip-to-azure-mapping/SKILL.md`. Stateless workflow containing `aggregator`, `saga`, or `Until` loops is a Major finding.
+- **Peek-lock vs lock duration** (`workflow-json-rules` §8.6b): for every Service Bus peek-lock workflow, total the worst-case time from trigger to each settle action (retry counts × max interval, `Until` timeouts, `Wait`s, honoured `Retry-After`). If it can exceed the entity's `lockDuration` (PT5M max) while the lock is still held, that is a **Major** finding (`MessageLockLost`, repeated work). A lost-claim branch that continues into the long work instead of completing and terminating is also Major. When the message is completed early, check that later settlements are guarded and that a recovery path exists for post-settlement failures (a sweep plus a failed-run alert); a missing path is Minor.
 
 ### Security
 - No inline secrets anywhere (`grep -nE 'AccountKey|SharedAccessSignature|password=' src infra`).
@@ -48,6 +49,10 @@ Exactly one file: `<integration-folder>/azure-review.md` (at the integration-fol
 - Azure-native connectors (Service Bus, Blob, SQL, Cosmos DB, Event Hub, Key Vault) must use MI pattern in `connections.json` and deployed `appsettings.*.json`. Connection strings for these in non-local config is a Major finding (Article V).
 - Key Vault references for parameters; no Key Vault secret values in files.
 - Role assignments are scoped to individual resources, not subscriptions or resource groups, where possible.
+- **Tracked properties on secured actions** (`workflow-json-rules` §8.6c): any `trackedProperties` on an action with `runtimeConfiguration.secureData`, or reading a secured action's outputs, is **Major** (the platform rejects it; unit tests do not).
+- **SQL users by display name:** `CREATE USER ... FROM EXTERNAL PROVIDER` in `sql/` is **Major**: it needs Directory Readers on the server identity, which nothing provisions, so the grants fail on a fresh environment. Users must be created `WITH SID = ..., TYPE = E` from client-id outputs (`azure-sql-schema-author`).
+- **SQL audit statement capture:** `BATCH_COMPLETED_GROUP`, `BATCH_STARTED_GROUP` or `SCHEMA_OBJECT_ACCESS_GROUP` in a SQL `auditingSettings` when a SQL-bound message is `confidential`/`restricted` or carries `pii: true` is **Major** (statement text, including JSON parameters, lands in the audit store).
+- **Anonymous endpoints logging caller input** (`azure-functions` / `azure-functions-compiler`): an HTTP function with `AuthorizationLevel.Anonymous` that verifies a signature or token in code must log nothing caller-supplied (headers, body fields, `traceparent`) before verification succeeds. Logging or tracing such a value first is **Major**. Also check `host.json`: `enableW3CDistributedTracing: true` on such an app lets the host trace on the unverified `traceparent` (Minor).
 
 ### Cost
 - Workflow Standard SKU matches the NFRs from the IR (`rps`, `p95LatencyMs`).
@@ -107,6 +112,7 @@ Exactly one file: `<integration-folder>/azure-review.md` (at the integration-fol
 - One Function App per flow — collapsing two `function-app` flows into a single project is a Major layout finding.
 - Trigger function naming aligns with the flow name (`<FlowName>Trigger`); activity functions live under `Functions/Activities/`, orchestrators under `Functions/Orchestrators/`.
 - No `NotImplementedException`, `TODO`, or empty method bodies (no-stubs sweep — Critical).
+- **Paired tests (Article VII):** every Function App has a test project at `tests-mstest/<FlowName>.Tests/` that references it, covers each `Mappings/*.cs` against the IR mapping's `tests[]` fixtures, and (for an anonymous endpoint) asserts that nothing caller-supplied is logged on the rejected path. A Function App with no test project is **Major**; mappings without fixture-conformance tests are Minor.
 
 ### Data Factory (when any flow has `implementation.host == data-factory`)
 - Every linked service in `adf/linkedServices/*.json` uses managed-identity auth (`servicePrincipalCredentialType: 'ServicePrincipalCert'` or `useSystemAssignedIdentity: true` / `useUserAssignedIdentity`). Connection strings or account keys embedded inline are a Critical finding.

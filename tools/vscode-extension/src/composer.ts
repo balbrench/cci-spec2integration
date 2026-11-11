@@ -48,6 +48,7 @@ async function pickChoice(spec: Extract<ArgSpec, { kind: 'choice' }>): Promise<s
   if (!sel) {
     return spec.optional ? [] : undefined;
   }
+  if (sel.value === '') return []; // an empty-valued option (e.g. "show") contributes no token
   return spec.flag ? [spec.flag, sel.value] : [sel.value];
 }
 

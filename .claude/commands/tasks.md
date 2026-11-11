@@ -11,7 +11,7 @@ Steps:
 2. Require `plan.md` to exist; otherwise instruct the user to run `/plan` first.
 3. Call the `task-decomposer` agent.
 4. Print total task count, parallelizable count, and a list of phases.
-5. Refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Mark stage 9 (Tasks) as `done` and recompute `next`.
+5. The status hook rebuilds `<folder>/status.json` from the agents' outputs; read it after the agents return. If it looks out of date (for example hooks are disabled), tell the user to run `/status <folder>`.
 6. Read the refreshed `<folder>/status.json` and ask one short follow-up question in chat: `What do you want to do next?`
 	- If the chat surface supports selectable options, offer them as choices.
 	- Otherwise render a numbered list and wait for the user's reply.

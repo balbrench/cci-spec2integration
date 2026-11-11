@@ -543,7 +543,7 @@
         },
         "contentPath": {
           "type": "string",
-          "description": "Optional path into the referenced message (e.g. `body`, `body.order`, `/Envelope/Body/Order`)."
+          "description": "Optional path to where the message sits in the mapping input. `body` (source side) means the mapping receives the run envelope { body, headers, context } with the source message at body; see the run-envelope section of docs/ir-spec.md. Other values are paths into the referenced message (e.g. `body.order`, `/Envelope/Body/Order`)."
         }
       }
     },
@@ -980,7 +980,7 @@
           "description": "Name of a mapping in mappings[] applied by this step. Required on transform and enrich steps going forward."
         },
         "predicate": {
-          "description": "Filter predicate. Either an engine expression object or a raw string (legacy).",
+          "description": "Filter predicate, evaluated against the run envelope { body, headers, context } (write body.<field>, context.<key>). Either an engine expression object or a raw string (legacy).",
           "oneOf": [
             { "type": "string" },
             { "$ref": "#/$defs/predicate" }
@@ -990,7 +990,20 @@
         "dependency": { "type": "string" },
         "timeout": { "type": "string", "pattern": "^PT[0-9]+[SMH]$" },
         "retryRef": { "type": "string" },
-        "next": { "type": "string" },
+        "resultKey": {
+          "description": "enrich / invoke: store the step's result (the dependency response, or the mapping output) at context.<resultKey> and leave the current message unchanged, so later steps read it as context.<resultKey>. Without resultKey an invoke replaces the current message with the response, and an enrich replaces it with its mapping output.",
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$"
+        },
+        "payloadKey": {
+          "description": "send / invoke: the outbound payload is context.<payloadKey> instead of the current body, and body is left unchanged. Use it when the message on the wire differs from the record the flow carries (for example a delivery step whose body is an attempt record).",
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9]*$"
+        },
+        "next": {
+          "description": "Id of the step that runs after this one, in the same flow. A step with no next, no routes, and no targets[] is terminal — its branch ends there. Array order never implies sequence: control flow comes only from next, routes[].next, targets[], errorHandling.fallback, and saga children[].",
+          "type": "string"
+        },
         "routes": {
           "type": "array",
           "items": {
@@ -1181,7 +1194,11 @@
           "required": ["channel"],
           "additionalProperties": false,
           "properties": {
-            "channel": { "type": "string" }
+            "channel": { "type": "string" },
+            "mappingRef": {
+              "description": "Flow-level dead-lettering: when a run ends in an unhandled error, apply this mapping to the flow's trigger message as received (run envelope, with context.failedStep set) and send its output to channel. Without mappingRef the raw trigger message is sent.",
+              "type": "string"
+            }
           }
         },
         "circuitBreaker": {
@@ -1244,6 +1261,10 @@
           "description": "Disposition when the step fails after exhausting retries. 'continue' swallows the error and proceeds to next; 'dlq' sends to the step's (or flow's) dlq; 'fallback' routes to the fallback step; 'fail' propagates to the flow error handler.",
           "enum": ["continue", "dlq", "fallback", "fail"],
           "default": "dlq"
+        },
+        "attemptMappingRef": {
+          "description": "Per-attempt record mapping. After every attempt of this step, success or failure, the runtime sets context.attemptResult (succeeded | failed) and context.attemptedAt and applies this mapping to the current attempt record (the step's input on the first attempt, the previous output after that). The last output becomes the body passed to next on success, or to fallback once retries are exhausted.",
+          "type": "string"
         }
       }
     },

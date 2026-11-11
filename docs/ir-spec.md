@@ -217,7 +217,7 @@ Platform packs translate these fields to the closest native primitive:
   direction: inbound
   subscription:
     name: orders-eu
-    filter: { kind: sql, expression: "region = 'EU'" }  # sql | correlation | header
+    filter: { kind: sql, expression: "body.region = 'EU'" }  # sql | correlation | header
 ```
 
 ### Selective and competing consumers (Phase 7)
@@ -297,7 +297,7 @@ messages:
 ### Idempotency and correlation
 
 - `idempotencyKey` is **mandatory** on any message consumed from an external inbound channel (Article III). `ir-validator` emits Sev-1 if missing; `reviewer` cites Article III explicitly.
-- `correlationId` is a body path or header name; when set, packs guarantee that the same value flows through every outbound message and every log / trace span derived from this one.
+- `correlationId` is a body path or header name; when set, packs guarantee that the same value flows through every outbound message and every log / trace span derived from this one. On a flow's trigger message, the flow's `tracked[]` entry named `correlationId` is authoritative: packs log and trace the value that entry's `source` resolves to, not the raw message field. This lets a flow correlate on a derived copy instead — for example a sanitized copy, when the raw field might carry data that must never reach logs — while the message still declares which business field the correlation comes from.
 - `version` + `compatibility` let packs decide whether a new deployment is safe to roll out alongside the old one. `backward` (default in most registries) means readers built for the old schema can still read new payloads.
 
 ### Classification and PII
@@ -458,9 +458,9 @@ Router `when` may be a raw string (legacy) or a typed predicate object (preferre
 - id: route
   type: router
   routes:
-    - when: { engine: jsonata, expression: "region = 'EU'" }
+    - when: { engine: jsonata, expression: "body.region = 'EU'" }
       next: publishEu
-    - when: { engine: jsonata, expression: "region = 'US'" }
+    - when: { engine: jsonata, expression: "body.region = 'US'" }
       next: publishUs
     - default: true
       next: rejectRegion
@@ -492,6 +492,20 @@ flows:
 | `data-factory` | `azure-data-factory-compiler` | `adf/pipelines/<Flow>.json` + datasets, linked services, triggers |
 
 `implementation` is set by the `target-architecture` agent (or hand-authored in the IR) and consumed by `/implement-azure`. When the field is omitted, the Azure pack defaults to `logic-app-standard`. `ir-validator` rejects `data-factory` for HTTP-triggered or sync-reply flows because ADF is fundamentally bulk data movement.
+
+**Control flow is explicit.** A step runs after another only when a link points at it: `next`, `routes[].next`, `targets[]` (`recipientList`, `scatterGather`), `errorHandling.fallback`, or saga `children[]`. The order of `steps[]` never implies sequence. A step with no `next`, no `routes`, and no `targets[]` is **terminal**: its branch ends there, wherever it sits in the array. A linear flow therefore sets `next` on every step except the last, and a flow with several branch ends (for example one HTTP reply per outcome) simply leaves each branch's last step without `next`. `ir-validator`, the FlowTester, the visualizer, and every platform compiler apply this rule.
+
+**The run envelope.** Every flow run carries one envelope `{ body, headers, context }`, and every expression in a flow is evaluated against it. Platform packs and the FlowTester implement these rules exactly:
+
+1. **Start of a run.** `body` is the trigger message, `headers` holds the inbound protocol headers declared on that message, and `context` holds run values (generated ids and timestamps, settings, lookup results).
+2. **Expressions.** `predicate` (filter) and `routes[].when` (router) are evaluated against the envelope, so they read `body.<field>`, `headers.<name>` and `context.<key>`.
+3. **Mapping input.** The mapping's input message is the **current message** when that message is of the mapping's `source.messageRef` type or of unknown type (an invoke response, a split item); otherwise it is the **most recent message of the source type** from the run history (rule 4). A mapping whose `source.contentPath` is `body` receives that message wrapped in the envelope; any other mapping receives the message directly. The mapping's output becomes the new `body`.
+4. **Message history.** Every message a step produces (the trigger — typed by its channel's `schemaRef` — and each mapping output, typed by the mapping's `target.messageRef`) is kept for the rest of the run at `context.<lowerCamel(messageType)>` (`PaymentRequest` → `context.paymentRequest`, `GatewayCallback-Received` → `context.gatewayCallbackReceived`). Later mappings take their source from there, and expressions can read earlier messages even after intervening steps replaced `body`. A `resultKey` naming the same key (e.g. a store lookup with `resultKey: paymentRequest`) updates that same entry.
+5. **Lookup results.** An `enrich` or `invoke` step with `resultKey` stores its result (the dependency response, or the output of its `mappingRef`) at `context.<resultKey>` and leaves `body` unchanged. Without `resultKey`, an `invoke` replaces `body` with the response and an `enrich` replaces it with its mapping output.
+5a. **Outbound payload.** A `send` or `invoke` step with `payloadKey` sends `context.<payloadKey>` on the wire and leaves `body` unchanged; without it, the step sends the current `body`. Use it when the wire message differs from the record the flow carries, e.g. a delivery step whose body is the per-attempt record (rule 7) while the wire message is the notification payload.
+6. **Step failure.** A failed step is retried per its retry policy; errors listed in `errorHandling.nonRetryableErrors` are not retried. When it is out of retries, `errorHandling.onError` decides: `fallback` runs the `errorHandling.fallback` step with the current body, `continue` proceeds to `next`, and `dlq` / `fail` end the run as an unhandled error.
+7. **Per-attempt records.** A step with `errorHandling.attemptMappingRef` applies that mapping after every attempt, success or failure, with `context.attemptResult` (`succeeded` | `failed`) and `context.attemptedAt` set. Its input is the step's input on the first attempt and the previous output after that. The last output is the body passed to `next` on success, or to `fallback` when retries run out.
+8. **Flow-level dead-lettering.** When a run ends in an unhandled error, the runtime sets `context.failedStep` and sends to the flow's `errorHandling.dlq.channel` either the trigger message as received or, when `errorHandling.dlq.mappingRef` is set, that mapping's output for an envelope whose `body` is the trigger message.
 
 Supported node types (mirrors Hohpe EIP):
 
@@ -532,9 +546,9 @@ flows:
       - id: route
         type: router
         routes:
-          - when: { engine: jsonata, expression: "region = 'EU'" }
+          - when: { engine: jsonata, expression: "body.region = 'EU'" }
             next: publishEu
-          - when: { engine: jsonata, expression: "region = 'US'" }
+          - when: { engine: jsonata, expression: "body.region = 'US'" }
             next: publishUs
       - id: publishEu
         type: send

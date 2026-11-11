@@ -21,13 +21,13 @@ Steps:
 5. If the generated Logic Apps project exists locally, run runtime validation per the skill: start the app locally, verify it starts cleanly, and note any runtime configuration or artifact-loading failures.
 6. Report pass/fail summary. If any test fails, list the failing tests. If runtime startup fails, list the blocking startup errors separately.
 7. Require or refresh `TEST-REPORT.md` in the project root when end-to-end testing has been executed for the integration; include field-level output-validation results when available.
-8. Write the machine-readable execution result to `<folder>/tests-mstest/test-results.json` so the status rebuild (and the auto refresh hook) report the outcome instead of reverting stage 11 to a generation-only summary:
+8. Write the machine-readable execution result to `<folder>/tests-mstest/test-results.json`; `scripts/refresh-status.ps1` derives stage 11 (Tests) from it. `passed` and `failed` are required top-level integers; set `verdict` to `BLOCKED` when `failed > 0` or runtime validation is blocked:
 
    ```json
    { "passed": <N>, "failed": <M>, "verdict": "PASS|BLOCKED", "executedAt": "<ISO-8601>", "runtimeValidation": "pass|blocked|skipped" }
    ```
 
-   Then refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Mark stage 11 (Tests) as `done` with summary `MSTest executed: N/total passed`; if `failed > 0` (or runtime validation is blocked) mark `blocked` with `MSTest executed: N/total passed, M failed`. Keep the summary consistent with what `scripts/refresh-status.ps1` derives from `test-results.json`, so the tree and `/status` always agree.
+   Then run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /test-azure` (pwsh on Linux/macOS) and read the result from `<folder>/status.json`.
 9. Read the refreshed `<folder>/status.json` and ask one short follow-up question in chat: `What do you want to do next?`
 	- If the chat surface supports selectable options, offer them as choices.
 	- Otherwise render a numbered list and wait for the user's reply.

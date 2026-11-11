@@ -6,7 +6,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Agent
 
 Prepare an integration for platform-specific implementation without making the user run the pre-implementation prompts one by one.
 
-This prompt is a **meta-runner** for the preparation slice of the pipeline. It invokes the existing slash-commands in sequence and relies on them to refresh `<folder>/status.json`. It MUST NOT write `status.json` directly.
+This prompt is a **meta-runner** for the preparation slice of the pipeline. It invokes the existing slash-commands in sequence; the status hook rebuilds `<folder>/status.json` from their agents' outputs. It MUST NOT write `status.json`.
 
 ## Arguments
 
@@ -44,7 +44,7 @@ If the folder cannot be resolved, stop with: `No integration folder found. Run /
 
 6. Run `/tasks <folder>`.
 
-7. Read the refreshed `<folder>/status.json` and print a compact summary:
+7. Read `<folder>/status.json` (rebuilt by the status hook; if it looks out of date, for example hooks are disabled, tell the user to run `/status <folder>`) and print a compact summary:
    - active platform
    - review counts (`sev1`, `sev2`, `sev3`)
    - whether `plan.md` and `tasks.md` now exist
@@ -64,4 +64,4 @@ If the folder cannot be resolved, stop with: `No integration folder found. Run /
 - This prompt is intended for greenfield and post-IR manual navigation.
 - It does not replace `/run-pipeline`; it shortens the path from validated IR to implementation readiness.
 - It MUST NOT invoke `/implement-<platform>` or `/deploy-<platform>`.
-- It MUST NOT write `status.json` directly; only the invoked sub-prompts do that.
+- It MUST NOT write `status.json`; only `scripts/refresh-status.ps1` does (see the `pipeline-status` skill).

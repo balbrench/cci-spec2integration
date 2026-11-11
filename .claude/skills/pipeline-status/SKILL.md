@@ -1,58 +1,70 @@
 ---
 name: pipeline-status
-description: How to refresh `<folder>/status.json` — the derived per-integration status file consumed by the IR visualizer's Migration Status panel. Every agent that produces or modifies an artifact under `specs/**/NNN-<slug>/` MUST update its own stage(s) in this file as its final step.
+description: How `<folder>/status.json` is produced — the derived per-integration status file consumed by `/status`, `/next`, the lifecycle guard and the IR visualizer's Migration Status panel. It is written only by `scripts/refresh-status.ps1`, which derives every stage from the artifacts and report verdicts on disk. Agents and commands never write stage rows; they write their own artifacts and reports.
 ---
 
 # pipeline-status skill
 
-`status.json` is derived state. Agents own their stage rows — each agent updates only the stages it produces, merging into the existing file rather than rebuilding from scratch.
+`status.json` is **derived state with a single writer**: `scripts/refresh-status.ps1`. Every stage row is computed from disk — whether each stage's artifact exists, and the verdict recorded inside its report file — so the file cannot disagree with the folder it describes.
 
-## Who updates status.json
+## Who writes status.json
 
-**Agents** are the primary owners. Each agent knows exactly what it produced; it updates only its own stage rows. Slash commands no longer own the refresh — they simply invoke agents and gate on the result.
+**Only `scripts/refresh-status.ps1`.** It runs in two ways:
 
-**When to update:** as the very last step before returning, after all artifacts are confirmed written to disk.
+1. **Automatically**, as the `PostToolUse` hook on `Write|Edit` (`.claude/settings.json`). After any Write/Edit inside `specs/<domain>/NNN-<slug>/` it rebuilds that folder's `status.json`; after an edit to a shared input (`specs/PRD.md`, `.spec2integration/state.json`, `specs/biztalk/*.md`) it rebuilds every integration. It skips edits to `status.json` itself. Either way it tags it `refreshedBy: auto:postwrite-hook`. Agents writing their artifacts and reports with the Write/Edit tools therefore trigger it without doing anything.
+2. **Directly**, by a command that has Bash/PowerShell (`/status`, `/implement-azure`, `/test-azure`, `/test-mappings`, `/test-flows`, `/deploy-azure`, `/change`, `/biztalk-reverse-engineer`) or by hand:
+   ```
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /<command>
+   ```
+   (`pwsh` on Linux/macOS.) Use this after edits the hook cannot see: Bash or script edits, edits made outside Claude Code, CI, or a session where hooks are disabled.
 
-**How to update (merge pattern):**
-1. Read the existing `<folder>/status.json`. If the file does not exist, start from an empty object with the standard schema.
-2. Update only the `stages[]` rows this agent owns — set `status`, `summary`, and any counts. Leave all other rows unchanged.
-   - **`summary` is ONE short line — a status caption, not a run log. Hard cap ≈200 characters; plain ASCII.** State only the outcome + the load-bearing counts (e.g. `"PASS: 0 Sev-1, 1 Sev-2 (SCANNER_MISSING overridden)"`, `"7 workflows + Functions + infra + CI/CD; azure-review PASS; 123 artifacts"`). This field is rendered verbatim in the IR visualizer's Migration Status panel — a paragraph makes the panel unreadable.
-   - **REPLACE your row's `summary`, never append to it.** Do not concatenate your step-by-step narrative, rationale, file lists, or — especially on a multi-agent stage like 10 (Implement) — the *previous* agent's summary. When several agents own one stage, the last writer rewrites it as a single combined one-liner; if you need to preserve per-agent provenance, put it in your chat response or the stage's report file, NOT in `summary`. (A 17 KB stage-10 summary that swallowed five agents' histories is exactly the failure this rule prevents.)
-3. Recalculate `counts` fields for the fields this agent affects (e.g. `sev1`/`sev2`/`sev3` after a review, `blockedFlows` after IR compilation). Leave counts you don't own unchanged.
-4. Update `generatedAt` to the current UTC ISO-8601 timestamp.
-5. Set `refreshedBy` to the agent's name (e.g. `"reviewer"`, `"planner"`, `"azure-logic-apps-compiler"`).
-6. Recalculate `next` — find the earliest stage that is not `done` and set the appropriate command.
-7. Preserve `artifactHashes` and `lastImplement` keys if present — never overwrite them.
-7a. Preserve the lifecycle-guard fields: the top-level `lifecycle` key and each `stages[].frozen` flag. These are owned only by `/lifecycle` (see `.claude/skills/lifecycle-guard/SKILL.md`); a stage refresh keeps a row's `frozen` flag and never changes `lifecycle`. Treat them exactly like `artifactHashes`/`lastImplement`.
-8. Write the merged result back.
+**Agents MUST NOT write `status.json`.** An agent reports its outcome by writing its own artifact and, where it has a verdict, its report file (the stage table below lists which). If an agent has an outcome with no report file, the fix is to give it a report file that the script reads, not to write a stage row. Reasons:
 
-**Read-only agents** (`ir-validator` when run standalone, `spec-coverage-checker`, `stm-drift-checker`, `pii-flow-checker`, `secret-scanner`) still update their specific sub-stages (5a, 5b, 5c, 5d) — they produce report files that have a definitive pass/fail verdict.
+1. **No drift.** A row computed from disk cannot contradict disk; a hand-written row can, and nothing would catch it.
+2. **No races.** Agents run in parallel inside a command; one writer means no lost merges.
+3. **Provenance.** `refreshedBy` names the command or the hook that rebuilt the file, not a sub-agent.
 
-It does **not** apply to read-only prompts (`/ir-diff`, `/visualize`, `/drift-check`, `/analyze`, `/idd` when run in report-only mode) or utility agents that don't produce stage-model integration artifacts (`prd-author`, `domain-architect`, `target-architecture`, `solution-design-author`).
+**Commands** do not write stage rows either. A command with Bash/PowerShell runs the script with `-Folder` as its last step; a command without it relies on the hook (its agents' Write/Edit calls trigger it) and, in its closing message, tells the user to run `/status <folder>` if the status looks out of date.
 
-## Stage ownership map
+### Keys the script preserves, and who writes them
 
-| Agent | Stage id(s) | Status value when done |
+A few keys cannot be derived from disk. The script carries them forward verbatim on every rebuild; only the named writer changes them:
+
+| Key | Written by | Why it cannot be derived |
 |---|---|---|
-| `biztalk-inventory` | `0a`, `0b` | `done` (both `biztalk-inventory.md` and `integration-catalogue.md` written) |
-| `biztalk-spec-author`, `requirements-analyst` | `1` | `done` |
-| `clarifier` | `1a` | `done` (openClarifications=0) or `blocked` |
-| `domain-modeler` | `2` | `done` |
-| `biztalk-contract-extractor`, `contract-designer` | `3` | `done` |
-| `contract-linter` | `3a` | `done` (PASS) or `blocked` (FAIL) |
-| `mapping-designer` | `4` | `done` (M/N STMs) |
-| `biztalk-ir-compiler`, `integration-architect` | `5` | `done` (flows/channels/mappings counts, BLOCKED count) |
-| `ir-validator` | `5a` | `done` (PASS) or `blocked` (FAIL) |
-| `stm-drift-checker` | `5b` | `done` or `blocked` |
-| `secret-scanner` | `5c` | `done` or `blocked` |
-| `pii-flow-checker` | `5d` | `done` or `blocked` |
-| `reviewer` | `5e` | `done` (sev1=0) or `blocked` (sev1>0) |
-| `mapping-tester` | `6` | `done` (failed=0) or `blocked` |
-| `flow-tester` | `6a` | `done` (failed=0) or `blocked` |
-| `planner` | `8` | `done` or `blocked` (plan-blocked.md produced) |
-| `task-decomposer` | `9` | `done` |
-| `azure-logic-apps-compiler`, `azure-functions-compiler`, `azure-data-factory-compiler`, `azure-dataverse-binder`, `azure-connections-binder`, `azure-bicep-author`, `azure-local-functions-author`, `azure-cicd-author` | `10` | `done` (M/N flows) or `blocked` |
-| `azure-workflow-tester` | `11` | `done` |
+| `artifactHashes`, `lastImplement` | `/implement-azure` (step 11), `/change` | the `/drift-check` baseline: the hashes as they were at generation time |
+| `lifecycle`, `stages[].frozen` | `/lifecycle` only | a deliberate user decision (see `.claude/skills/lifecycle-guard/SKILL.md`) |
+| `specCoverage` | none (legacy) | an old summary block; kept so older files do not lose it. No agent writes it any more. |
+| `stageTiming[].completedAt` | the script itself | first-completion time, kept stable across rebuilds |
+
+A writer of one of these keys reads `status.json`, changes only its key, and writes the file back; then it runs the script (or relies on the hook) so the stage rows are rebuilt around it.
+
+## Where each stage's outcome comes from
+
+The producing agent writes the artifact or report; the script reads it. A stage is `blocked` when its report's `summary.verdict` is `FAIL`/`BLOCKED`, or it records `summary.sev1 > 0` or `summary.failed > 0` (top-level keys are accepted for older reports).
+
+| Producer | Stage id(s) | The script reads |
+|---|---|---|
+| `biztalk-inventory` | `0a`, `0b` | `specs/biztalk/biztalk-inventory.md`, `integration-catalogue.md` |
+| `biztalk-spec-author`, `requirements-analyst` | `1` | `spec.md` |
+| `clarifier` | `1a` | `clarifications.md` (open/closed counts) |
+| `domain-modeler` | `2` | `data-model.md` |
+| `biztalk-contract-extractor`, `contract-designer` | `3` | `contracts/` |
+| `contract-linter` | `3a` | `contract-lint-report.json` verdict |
+| `mapping-designer` | `4` | `mappings/*.md` |
+| `biztalk-ir-compiler`, `integration-architect` | `5` | `integration-ir.yaml` |
+| `ir-validator` | `5a` | `ir-validation-report.json` verdict |
+| `stm-drift-checker` | `5b` | `stm-drift-report.json` verdict |
+| `secret-scanner` | `5c` | `secret-scan-report.json` (sev1, scanExecuted) |
+| `pii-flow-checker` | `5d` | `pii-flow-report.json` verdict |
+| `reviewer` | `5e` | `review-report.json` verdict / sev1 |
+| `mapping-tester` | `6` | `mapping-test-report.json` passed/failed |
+| `flow-tester` | `6a` | `flow-test-report.json` passed/failed |
+| `/platform` | `7` | `.spec2integration/state.json` `activePlatform` |
+| `planner` | `8` | `plan.md` or `plan-blocked.md` |
+| `task-decomposer` | `9` | `tasks.md` |
+| the `azure-*` compilers, binders and authors; `azure-reviewer`; `/implement-azure` gates | `10` | the artifact tree (`app/<flow>/workflow.json`, `FunctionApps/<flow>/`, `adf/pipelines/`), the `Verdict:` line of `azure-review.md`, and `implement-gates.json` |
+| `azure-workflow-tester`, `azure-functions-compiler` (test projects); `/test-azure`; `/implement-azure` gate 8d | `11` | `tests-mstest/test-results.json`, else `implement-gates.json` `tests`, else the test projects' existence |
 
 ## Resolving the integration folder
 
@@ -90,18 +102,18 @@ Probe each artifact. Record `done | missing | blocked | covered` and a short `su
 | 3a  | Contracts lint    | `<folder>/contract-lint-report.json` exists with verdict `PASS`.                                              |
 | 4   | Mappings (STM)    | one `<folder>/mappings/<Name>.md` per `mappings[].name` in IR.                                                |
 | 5   | IR                | `<folder>/integration-ir.yaml` exists.                                                                         |
-| 5a  | IR validation     | `<folder>/ir-validation-report.json` exists.                                                                   |
-| 5b  | STM drift         | `<folder>/stm-drift-report.json` exists. If `/review` was the producer, this stage may be marked `covered`.   |
+| 5a  | IR validation     | `<folder>/ir-validation-report.json` exists; `blocked` when its verdict is FAIL or it records Sev-1.          |
+| 5b  | STM drift         | `<folder>/stm-drift-report.json` exists; `blocked` when its verdict is FAIL. `covered` when only `review-report.json` exists. |
 | 5c  | Secret scan       | `<folder>/secret-scan-report.json` exists, OR `integration-ir.yaml` has no top-level `source:` block (greenfield → `done` with summary `not applicable (greenfield)`). May be `covered` by `/review` when the scanner runs (BizTalk path).         |
-| 5d  | PII flow          | `<folder>/pii-flow-report.json` exists. May be `covered` by `/review`.                                        |
-| 5e  | Review            | `<folder>/review-report.json` exists.                                                                          |
+| 5d  | PII flow          | `<folder>/pii-flow-report.json` exists; `blocked` on FAIL or Sev-1. `covered` when only `review-report.json` exists. |
+| 5e  | Review            | `<folder>/review-report.json` exists; `blocked` when `summary.sev1 > 0` or the verdict is BLOCKED.             |
 | 6   | Mapping tests     | `<folder>/mapping-test-report.json` exists with `failed=0`.                                                   |
 | 6a  | Flow tests        | `<folder>/flow-test-report.json` exists with `failed=0`.                                                      |
-| 7   | Platform pack     | `.spec2integration/state.json` exists with non-null `activePlatform`. **Always re-probe from `state.json` on every refresh — never preserve a prior row value.** This stage is a pure function of `state.json` and is owned by no artifact-producing agent, so the per-agent merge model (which preserves rows an agent doesn't own) would otherwise leave a stale `missing` placeholder forever when a run reuses an already-active pack without re-running `/platform`. Summary: `<activePlatform>` when set, else `no active platform`. |
+| 7   | Platform pack     | `.spec2integration/state.json` exists with non-null `activePlatform`. Re-probed from `state.json` on every rebuild, like every other stage. Summary: `<activePlatform>` when set, else `no active platform`. |
 | 8   | Plan              | `<folder>/plan.md` exists (not `plan-blocked.md`).                                                             |
 | 9   | Tasks             | `<folder>/tasks.md` exists.                                                                                    |
-| 10  | Implement         | per platform — for `azure`: one `<folder>/app/<flow>/workflow.json` per non-BLOCKED flow (flow folders sit at the LA project root, NOT under `src/`).                       |
-| 11  | Tests             | per platform — for `azure`: `<folder>/tests-mstest/**/*.csproj` exists (the MSTest project; `<folder>/app/tests/` is reserved for designer JSON fixtures, not csproj). **Execution-aware:** when `<folder>/tests-mstest/test-results.json` exists (written by `/test-azure`), the summary reports `MSTest executed: N/total passed` and the stage is `blocked` if `failed > 0`; generation alone (csproj present, no results) is still `done` but the summary says `generated; not yet executed` so the tree and `/status` agree on whether tests have actually run. |
+| 10  | Implement         | per platform — for `azure`: at least one of `<folder>/app/<flow>/workflow.json`, `<folder>/FunctionApps/<flow>/<flow>.csproj` (a Function App, i.e. with `<AzureFunctionsVersion>`), `<folder>/adf/pipelines/*.json`. Summary gives the per-bucket counts. `blocked` when `azure-review.md` has a verdict other than PASS, or `implement-gates.json` (written by `scripts/check-azure-artifacts.ps1 -ReportFile` in `/implement-azure` gates 8a–8d) records errors or a gate that failed or could not run. Without `implement-gates.json` the stage is `done` with `gates not recorded`, so an unverified tree is never shown as verified. |
+| 11  | Tests             | per platform — for `azure`: the first that exists of `<folder>/tests-mstest/test-results.json` (written by `/test-azure`), the `tests` block of `<folder>/implement-gates.json` (gate 8d), or `<folder>/tests-mstest/**/*.csproj`. Executed results report `N/total passed` and are `blocked` when anything failed; projects that exist but have not run are `done` with `not yet executed`. |
 | 12  | Deploy            | per platform — for `azure`: `<folder>/azure.yaml` AND `<folder>/.azure/` both exist (`.azure/` is created by `azd up`).                                                       |
 
 `covered` is used **only** when one prompt has explicitly subsumed another's report (e.g. `/review` runs the secret-scanner / pii-flow-checker / stm-drift-checker in-process and aggregates their findings into `review-report.json`).
@@ -138,16 +150,9 @@ Use `stat -c %Y <file>` (or equivalent) to compute mtimes. For a directory sourc
 
 When a stage is detected stale, set its `status` to `stale` (do not downgrade to `missing`) and populate a top-level `staleness` array in `status.json` listing every stale stage with the upstream that triggered it. The most-upstream stale stage drives `next` (see precedence).
 
-### Graceful degradation when `Bash` is not in the prompt's tool list
+### Staleness is always probed
 
-Most pipeline commands (`/specify`, `/clarify`, `/model`, `/contracts`, `/map`, `/architect`, `/review`, `/plan`, `/tasks`) do not include `Bash` in their `allowed-tools` and therefore cannot call `stat`. When refreshing `status.json` from one of these commands:
-
-1. Leave the `staleness` array empty (`[]`) and `counts.staleStages` as `0`.
-2. Do not promote any stage to `stale` — keep stage statuses as `done` / `missing` / `blocked` / `covered`.
-3. Add `"staleness_probed": false` to the JSON so `/next` and the visualizer know to ask for a re-probe.
-4. In the chat follow-up, append one extra line: `Note: staleness was not probed in this refresh. Run /status <folder> to check whether earlier artifacts were edited after later ones.`
-
-`/status` is the canonical staleness probe — it has `Bash` in its tool list and always runs the mtime comparison. Users who edit a source artifact mid-flow should run `/status` (or `/next`, which reads the same file) to surface the resulting staleness.
+The script computes staleness on every rebuild (hook or direct), so `staleness_probed` is always `true` in a file it wrote. A command without Bash does not compute staleness itself; it relies on the hook. If the hook is disabled, `/status <folder>` runs the script and probes it.
 
 ## Next-step precedence
 
@@ -223,19 +228,19 @@ Populate from the produced reports. Use `null` (not `0`) when a report has not b
 
 `staleness` is an array (possibly empty). Each entry names a stage whose primary artifact is older than at least one upstream source, names the upstream, and gives a one-sentence reason that the visualizer / `/next` can quote verbatim.
 
-`refreshedBy` is the literal slash-command name (with leading `/`) of the prompt performing the refresh. The visualizer displays it in the Migration Status panel footer so users can see at a glance which command last touched the file.
+`refreshedBy` is `auto:postwrite-hook` when the hook rebuilt the file, or the `-RefreshedBy` value (a slash-command name with leading `/`) when a command ran the script directly. The visualizer displays it in the Migration Status panel footer.
 
-`lifecycle` (`generate` by default, or absent) and the per-stage `frozen` flag are the **lifecycle-guard** fields (see `.claude/skills/lifecycle-guard/SKILL.md`). Only `/lifecycle` sets them; every other refresh (agent merge, `/status` rebuild, the background hook) **preserves** them. When `lifecycle == post-implementation`, the generative commands refuse to regenerate — edits go through `/change`.
+`lifecycle` (`generate` by default, or absent) and the per-stage `frozen` flag are the **lifecycle-guard** fields (see `.claude/skills/lifecycle-guard/SKILL.md`). Only `/lifecycle` sets them; every rebuild by the script **preserves** them. When `lifecycle == post-implementation`, the generative commands refuse to regenerate — edits go through `/change`.
 
 ### Richer e2e fields (optional)
 
-These three keys are **advisory** — they drive the VS Code progress cockpit but gate nothing. The always-on `refresh-status.ps1` hook derives them from files it already reads, so no agent must populate them by hand; an agent MAY refine them when it has authoritative data.
+These three keys are **advisory** — they drive the VS Code progress cockpit but gate nothing. The script derives them from files it already reads.
 
 - **`coverage`** — `{ flowsTotal, flowsWithTests, mappingsTotal, mappingsDocumented }`. `flowsTotal` / `flowsWithTests` / `mappingsTotal` come from a line scan of `integration-ir.yaml`'s `flows:` and `mappings:` sections; `mappingsDocumented` is the count of `mappings/*.md` STM files. Omit the whole object when no IR exists yet.
 - **`blockedFlowIds`** — string[] of the flow ids carrying a `# BLOCKED:` marker in the IR (the named counterpart to `counts.blockedFlows`). Empty array when none.
 - **`stageTiming`** — `{ "<stageId>": { completedAt, elapsedMs } }`. `completedAt` is stamped (UTC ISO-8601) when a stage first reaches `done`/`covered` and is **preserved across rebuilds**; `elapsedMs` is the gap to the previously-completed stage, a rough per-stage duration.
 
-Preserve these the same way as `artifactHashes` / `lastImplement` when refreshing — never wipe a prior `stageTiming.completedAt`.
+The script keeps a prior `stageTiming.completedAt` stable across rebuilds.
 
 ## Post-refresh chat guidance
 
@@ -253,25 +258,16 @@ This keeps the next-step guidance actionable without forcing the user to remembe
 
 ## Refresh protocol
 
-At the end of any non-read-only pipeline prompt:
+`scripts/refresh-status.ps1` performs these steps; nothing else does:
 
-1. Determine the integration folder (already resolved earlier in the prompt).
-2. Probe every stage row above from disk. Do **not** trust the previous `status.json` — overwrite from scratch.
-3. Compare mtimes per the Staleness section. Mark stale stages and populate the `staleness` array.
-4. Set `generatedAt` to the current UTC timestamp.
-5. Set `refreshedBy` to the slash-command name of the running prompt (e.g. `/review`, `/clarify`, `/implement-azure`).
-6. Set `activePlatform` from `.spec2integration/state.json` if present, else `null`.
-7. Compute `next` from the precedence table (staleness wins over forward progression).
-8. Write the file. This is the prompt's last write; if it fails, surface the error but do not retry the entire pipeline.
+1. Resolve the integration folder (from the edited file's path in hook mode, from `-Folder` in direct mode).
+2. Probe every stage row above from disk, reading report verdicts. Never trust the previous stage rows.
+3. Compare mtimes per the Staleness section; mark stale stages and populate `staleness`.
+4. Compute `next` from the precedence table (staleness wins over forward progression).
+5. Set `generatedAt`, `refreshedBy` (`-RefreshedBy`, default `auto:postwrite-hook`) and `activePlatform`.
+6. Carry forward the preserved keys listed under *Keys the script preserves*.
+7. Write the file.
 
-This refresh is the **only** authorised mutation of `status.json` outside `/status` itself. It does not violate Article VIII because the file is per-integration derived state, not pipeline-global mutable state.
+This does not violate Article VIII: `status.json` is per-integration derived state, not pipeline-global mutable state.
 
-## Sub-agents MUST NOT write `status.json`
-
-Only the calling slash-command refreshes `status.json`. Sub-agents (anything invoked via the `Agent` tool — i.e. files under any plugin's `agents/` directory) **MUST NOT** create or modify `status.json` under any circumstances, even when they have `Write` or `Edit` in their tool list and are the last step before the orchestrator returns. This is a hard rule with three reasons:
-
-1. **`refreshedBy` provenance.** The visualizer reads `refreshedBy` to show which slash-command last touched the file. A sub-agent writing it would set `refreshedBy` to its own name, hiding the actual orchestrator and confusing users.
-2. **One-write-per-run.** Sub-agents run in parallel inside a prompt; if any of them write `status.json`, the result is a race. The prompt's final refresh is the single serialisation point.
-3. **Stage probe consistency.** A sub-agent writes mid-run, before sibling agents have finished. Its probe sees a partial folder state and produces wrong stage values.
-
-If you are a sub-agent and your output spec or summary mentions `status.json`, that is a documentation bug — record the intended status update in your run summary as plain text (e.g. "Stage 5 (IR) is now `done` with N flows / M channels") so the calling prompt can use it during the final refresh, but do not write the file yourself.
+A command that needs the status (for example a phase gate) reads `status.json` after its agents have returned; if it has Bash it runs the script first so the read is current.

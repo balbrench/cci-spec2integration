@@ -101,7 +101,7 @@ let currentAbort = null;
 // (/specify, /platform, /run-pipeline, /ir-diff) are intentionally omitted here.
 const QUICK = ['/status','/next','/clarify','/model','/contracts','/map','/architect','/review',
                '/test-mappings','/test-flows','/plan','/tasks','/implement-azure','/test-azure',
-               '/deploy-azure','/visualize','/drift-check'];
+               '/deploy-azure','/visualize','/drift-check','/analyze','/reconcile','/idd'];
 // Per-stage "run" button → the command that advances/re-runs that stage (folder-arg-safe).
 // Mirrors the producer mapping in scripts/refresh-status.ps1. Stages 0/1/7 are omitted
 // (inventory / /specify / /platform don't take a plain folder arg).

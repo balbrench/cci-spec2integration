@@ -27,20 +27,20 @@ This command writes **only** the `lifecycle` key and the `stages[].frozen` flags
    Then, if `lifecycle == post-implementation`, add: `Generative commands are blocked. Make changes with /change "<description>" <folder>.`
    Stop.
 
-5. **freeze**: read `status.json`, set top-level `lifecycle: "post-implementation"`, and set `"frozen": true` on each stage row whose id is in the target set (default `1,2,3,3a,4,5,8,9,10`, or the `--stage` list). Preserve every other key and every other stage field. Set `refreshedBy: "/lifecycle"` and `generatedAt` to now. Write it back. Print:
+5. **freeze**: read `status.json`, set top-level `lifecycle: "post-implementation"`, and set `"frozen": true` on each stage row whose id is in the target set (default `1,2,3,3a,4,5,8,9,10`, or the `--stage` list). Change only these keys — preserve every other key (including `refreshedBy`, `generatedAt` and `artifactHashes`) and every other stage field. Write it back. Print:
    ```
    Froze <folder>. Lifecycle = post-implementation; frozen stages: <ids>.
    Generative commands will now refuse to regenerate. Edit via /change "<description>" <folder>,
    or override a single run with --force-regen.
    ```
 
-6. **unfreeze**: read `status.json`, set `lifecycle: "generate"`, remove `frozen` (or set `false`) on every stage row. Preserve every other key. Set `refreshedBy`/`generatedAt`. Write it back. Print:
+6. **unfreeze**: read `status.json`, set `lifecycle: "generate"`, remove `frozen` (or set `false`) on every stage row. Change only these keys — preserve every other key and every other stage field. Write it back. Print:
    ```
    ⚠ Unfroze <folder>. Lifecycle = generate. Generative commands can now regenerate and
    OVERWRITE deployed artifacts. Re-freeze with /lifecycle freeze <folder> when done.
    ```
 
-7. This command does not refresh stage statuses and does not invoke any agent. The only mutation is the `lifecycle` / `frozen` keys in `status.json`.
+7. This command does not refresh stage statuses and does not invoke any agent. The only mutation is the `lifecycle` / `frozen` keys in `status.json`; `scripts/refresh-status.ps1` carries them forward on every later rebuild.
 
 ## Examples
 

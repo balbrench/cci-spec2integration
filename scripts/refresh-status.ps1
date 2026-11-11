@@ -1,7 +1,15 @@
 # refresh-status.ps1
 #
-# PostToolUse hook (Write|Edit) that rebuilds <integration-folder>/status.json
-# whenever a file inside specs/<domain>/NNN-<slug>/ is created or modified.
+# The ONLY writer of <integration-folder>/status.json. Every stage row is
+# derived from disk (artifacts and the verdicts inside their report files);
+# agents and slash commands never write stage rows by hand.
+#
+# Two ways to run it:
+#   * As the PostToolUse hook (Write|Edit): reads the hook payload on stdin and
+#     rebuilds the status of the integration folder the edited file is in.
+#   * Directly, by a slash command or by hand (also after edits the hook cannot
+#     see - Bash/script edits, edits outside Claude, CI):
+#       powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> [-RefreshedBy /status]
 #
 # Implements the refresh protocol from
 # .claude/skills/pipeline-status/SKILL.md.
@@ -23,7 +31,12 @@
 #     announced on the next /next or visualizer read without a manual /status.
 #   * Never fails the tool call. Errors land in .spec2integration/hook.log.
 
-param()
+param(
+    # Integration folder to rebuild directly (skips reading the hook payload).
+    [string]$Folder,
+    # Recorded as status.json `refreshedBy`. Defaults to the hook tag.
+    [string]$RefreshedBy = "auto:postwrite-hook"
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -86,6 +99,42 @@ function Get-StageReport {
     } catch {
         return $null
     }
+}
+
+# Reports nest their outcome under `summary` ({verdict, sev1, failed, ...});
+# older ones put it at the top level. Read summary first, then the top level.
+function Get-ReportValue {
+    param($Report, [string[]]$Names)
+    if ($null -eq $Report) { return $null }
+    $scopes = @()
+    if ($Report.PSObject.Properties['summary'] -and ($Report.summary -is [psobject])) { $scopes += $Report.summary }
+    $scopes += $Report
+    foreach ($n in $Names) {
+        foreach ($o in $scopes) {
+            if ($o.PSObject.Properties[$n] -and $null -ne $o.$n) { return $o.$n }
+        }
+    }
+    return $null
+}
+
+# A stage row from a report file: `blocked` when the report's verdict is
+# FAIL/BLOCKED, or it records Sev-1 findings or failed tests; else `done`.
+function New-ReportStage {
+    param([string]$Id, [string]$Name, $Report, [string]$File)
+    $verdict = [string](Get-ReportValue $Report @('verdict'))
+    $sev1    = Get-ReportValue $Report @('sev1', 'sev1Count')
+    $passed  = Get-ReportValue $Report @('passed')
+    $failed  = Get-ReportValue $Report @('failed')
+    $parts = @()
+    if ($verdict) { $parts += $verdict }
+    if ($null -ne $sev1) { $parts += "sev1=$sev1" }
+    if ($null -ne $passed -or $null -ne $failed) { $parts += "passed=$([int]$passed) failed=$([int]$failed)" }
+    $blocked = ($verdict -match '^(?i)(FAIL|BLOCKED)') -or
+               ($null -ne $sev1 -and [int]$sev1 -gt 0) -or
+               ($null -ne $failed -and [int]$failed -gt 0)
+    $summary = if ($parts.Count -gt 0) { "${File}: " + ($parts -join ', ') } else { "$File present (no verdict recorded)" }
+    $status  = if ($blocked) { "blocked" } else { "done" }
+    return (New-Stage $Id $Name $status $summary)
 }
 
 function New-Stage {
@@ -205,15 +254,17 @@ function Get-StageProbe {
     }
 
     # Stage 5a - IR validation
-    if (Test-StagePath $IntegrationFolder "ir-validation-report.json") {
-        [void]$stages.Add((New-Stage "5a" "IR validation" "done" "ir-validation-report.json present"))
+    $ivReport = Get-StageReport (Join-Path $IntegrationFolder "ir-validation-report.json")
+    if ($ivReport) {
+        [void]$stages.Add((New-ReportStage "5a" "IR validation" $ivReport "ir-validation-report.json"))
     } else {
         [void]$stages.Add((New-Stage "5a" "IR validation" "missing" ""))
     }
 
     # Stage 5b - STM drift (may be covered by /review)
-    if (Test-StagePath $IntegrationFolder "stm-drift-report.json") {
-        [void]$stages.Add((New-Stage "5b" "STM drift" "done" "stm-drift-report.json present"))
+    $sdReport = Get-StageReport (Join-Path $IntegrationFolder "stm-drift-report.json")
+    if ($sdReport) {
+        [void]$stages.Add((New-ReportStage "5b" "STM drift" $sdReport "stm-drift-report.json"))
     } elseif (Test-StagePath $IntegrationFolder "review-report.json") {
         [void]$stages.Add((New-Stage "5b" "STM drift" "covered" "by /review"))
     } else {
@@ -257,8 +308,9 @@ function Get-StageProbe {
     }
 
     # Stage 5d - PII flow (may be covered by /review)
-    if (Test-StagePath $IntegrationFolder "pii-flow-report.json") {
-        [void]$stages.Add((New-Stage "5d" "PII flow" "done" "pii-flow-report.json present"))
+    $pfReport = Get-StageReport (Join-Path $IntegrationFolder "pii-flow-report.json")
+    if ($pfReport) {
+        [void]$stages.Add((New-ReportStage "5d" "PII flow" $pfReport "pii-flow-report.json"))
     } elseif (Test-StagePath $IntegrationFolder "review-report.json") {
         [void]$stages.Add((New-Stage "5d" "PII flow" "covered" "by /review"))
     } else {
@@ -268,10 +320,7 @@ function Get-StageProbe {
     # Stage 5e - Review
     $reviewReport = Get-StageReport (Join-Path $IntegrationFolder "review-report.json")
     if ($reviewReport) {
-        $sev1 = if ($reviewReport.PSObject.Properties['sev1Count']) { $reviewReport.sev1Count } else { $null }
-        $summary = if ($null -ne $sev1) { "review-report.json (sev1=$sev1)" } else { "review-report.json present" }
-        $status = if ($null -ne $sev1 -and $sev1 -gt 0) { "blocked" } else { "done" }
-        [void]$stages.Add((New-Stage "5e" "Review" $status $summary))
+        [void]$stages.Add((New-ReportStage "5e" "Review" $reviewReport "review-report.json"))
     } else {
         [void]$stages.Add((New-Stage "5e" "Review" "missing" ""))
     }
@@ -279,13 +328,7 @@ function Get-StageProbe {
     # Stage 6 - Mapping tests
     $mtReport = Get-StageReport (Join-Path $IntegrationFolder "mapping-test-report.json")
     if ($mtReport) {
-        $failed = if ($mtReport.PSObject.Properties['failed']) { $mtReport.failed } else { 0 }
-        $passed = if ($mtReport.PSObject.Properties['passed']) { $mtReport.passed } else { 0 }
-        if ($failed -gt 0) {
-            [void]$stages.Add((New-Stage "6" "Mapping tests" "blocked" "passed=$passed failed=$failed"))
-        } else {
-            [void]$stages.Add((New-Stage "6" "Mapping tests" "done" "passed=$passed failed=0"))
-        }
+        [void]$stages.Add((New-ReportStage "6" "Mapping tests" $mtReport "mapping-test-report.json"))
     } else {
         [void]$stages.Add((New-Stage "6" "Mapping tests" "missing" ""))
     }
@@ -293,13 +336,7 @@ function Get-StageProbe {
     # Stage 6a - Flow tests
     $ftReport = Get-StageReport (Join-Path $IntegrationFolder "flow-test-report.json")
     if ($ftReport) {
-        $failed = if ($ftReport.PSObject.Properties['failed']) { $ftReport.failed } else { 0 }
-        $passed = if ($ftReport.PSObject.Properties['passed']) { $ftReport.passed } else { 0 }
-        if ($failed -gt 0) {
-            [void]$stages.Add((New-Stage "6a" "Flow tests" "blocked" "passed=$passed failed=$failed"))
-        } else {
-            [void]$stages.Add((New-Stage "6a" "Flow tests" "done" "passed=$passed failed=0"))
-        }
+        [void]$stages.Add((New-ReportStage "6a" "Flow tests" $ftReport "flow-test-report.json"))
     } else {
         [void]$stages.Add((New-Stage "6a" "Flow tests" "missing" ""))
     }
@@ -334,17 +371,71 @@ function Get-StageProbe {
         [void]$stages.Add((New-Stage "9" "Tasks" "missing" ""))
     }
 
-    # Stage 10 - Implement (platform-specific; azure only for now)
+    # Stage 10 - Implement (platform-specific; azure only for now).
+    # Artifacts per host bucket, then the verdicts: implement-gates.json (written by
+    # scripts/check-azure-artifacts.ps1 -ReportFile in /implement-azure gates 8a-8d)
+    # and the azure-review.md verdict line. Artifacts with no gate record are `done`
+    # but say so, so an unverified tree is never reported as verified.
+    $gatesReport = $null
     if ($activePlatform -eq "azure") {
+        $workflowCount = 0; $functionAppCount = 0; $pipelineCount = 0
         $appDir = Join-Path $IntegrationFolder "app"
-        $workflowCount = 0
         if (Test-Path $appDir) {
-            $workflowCount = (Get-ChildItem $appDir -Recurse -Filter "workflow.json" -File -ErrorAction SilentlyContinue | Measure-Object).Count
+            $workflowCount = @(Get-ChildItem $appDir -Directory -ErrorAction SilentlyContinue |
+                Where-Object { Test-Path (Join-Path $_.FullName "workflow.json") }).Count
         }
-        if ($workflowCount -gt 0) {
-            [void]$stages.Add((New-Stage "10" "Implement" "done" "$workflowCount workflow.json file(s) under app/"))
+        $faDir = Join-Path $IntegrationFolder "FunctionApps"
+        if (Test-Path $faDir) {
+            foreach ($d in (Get-ChildItem $faDir -Directory -ErrorAction SilentlyContinue)) {
+                $csproj = Join-Path $d.FullName "$($d.Name).csproj"
+                if ((Test-Path $csproj) -and ((Get-Content $csproj -Raw) -match '<AzureFunctionsVersion>')) { $functionAppCount++ }
+            }
+        }
+        $pipeDir = Join-Path $IntegrationFolder "adf/pipelines"
+        if (Test-Path $pipeDir) {
+            $pipelineCount = @(Get-ChildItem $pipeDir -Filter "*.json" -File -ErrorAction SilentlyContinue).Count
+        }
+        $artifactTotal = $workflowCount + $functionAppCount + $pipelineCount
+        $buckets = "$workflowCount/$functionAppCount/$pipelineCount (logic-app/function-app/data-factory)"
+
+        $reviewVerdict = $null
+        $azReviewPath = Join-Path $IntegrationFolder "azure-review.md"
+        if (Test-Path $azReviewPath) {
+            $m = [regex]::Match((Get-Content $azReviewPath -Raw), '(?im)^[\s>*_-]*Verdict\s*[:*_]*\s*\**\s*(PASS|BLOCKED|FAIL)')
+            if ($m.Success) { $reviewVerdict = $m.Groups[1].Value.ToUpperInvariant() }
+        }
+        $gatesReport = Get-StageReport (Join-Path $IntegrationFolder "implement-gates.json")
+
+        if ($artifactTotal -eq 0) {
+            [void]$stages.Add((New-Stage "10" "Implement" "missing" "no app/<flow>/workflow.json, FunctionApps/<flow>/ or adf/pipelines/ found"))
         } else {
-            [void]$stages.Add((New-Stage "10" "Implement" "missing" "no app/<flow>/workflow.json found"))
+            $parts = @($buckets)
+            $blocked = $false
+            if ($reviewVerdict) {
+                $parts += "azure-review $reviewVerdict"
+                if ($reviewVerdict -ne 'PASS') { $blocked = $true }
+            } else {
+                $parts += "azure-review not run"
+            }
+            if ($gatesReport) {
+                $failedGates = @()
+                if ($gatesReport.PSObject.Properties['gates']) {
+                    foreach ($g in $gatesReport.gates.PSObject.Properties) {
+                        if ($g.Value -eq 'fail' -or $g.Value -eq 'not-run') { $failedGates += "$($g.Name)=$($g.Value)" }
+                    }
+                }
+                $gErrors = Get-ReportValue $gatesReport @('errors')
+                if ($failedGates.Count -gt 0 -or ($null -ne $gErrors -and [int]$gErrors -gt 0)) {
+                    $blocked = $true
+                    $parts += "gates: " + ($(if ($failedGates.Count -gt 0) { $failedGates -join ' ' } else { "$gErrors error(s)" }))
+                } else {
+                    $parts += "gates passed"
+                }
+            } else {
+                $parts += "gates not recorded"
+            }
+            $status10 = if ($blocked) { "blocked" } else { "done" }
+            [void]$stages.Add((New-Stage "10" "Implement" $status10 ($parts -join '; ')))
         }
     } else {
         [void]$stages.Add((New-Stage "10" "Implement" "missing" "no active platform"))
@@ -369,6 +460,14 @@ function Get-StageProbe {
                 [void]$stages.Add((New-Stage "11" "Tests" "blocked" "MSTest executed: $passed/$total passed, $failed failed"))
             } else {
                 [void]$stages.Add((New-Stage "11" "Tests" "done" "MSTest executed: $passed/$total passed"))
+            }
+        } elseif ($gatesReport -and $gatesReport.PSObject.Properties['tests'] -and [int]$gatesReport.tests.projects -gt 0) {
+            $t = $gatesReport.tests
+            $total = [int]$t.passed + [int]$t.failed
+            if ([int]$t.failed -gt 0 -or [int]$t.failedProjects -gt 0) {
+                [void]$stages.Add((New-Stage "11" "Tests" "blocked" "implement gate 8d: $($t.passed)/$total passed across $($t.projects) project(s), $($t.failedProjects) project(s) failed"))
+            } else {
+                [void]$stages.Add((New-Stage "11" "Tests" "done" "implement gate 8d: $($t.passed)/$total passed across $($t.projects) project(s)"))
             }
         } elseif ($csprojCount -gt 0) {
             [void]$stages.Add((New-Stage "11" "Tests" "done" "$csprojCount MSTest project(s) generated; not yet executed - run /test-azure"))
@@ -750,7 +849,7 @@ function Update-IntegrationStatus {
     $status = [ordered]@{
         folder           = $relFolder
         generatedAt      = $nowIso
-        refreshedBy      = "auto:postwrite-hook"
+        refreshedBy      = $RefreshedBy
         activePlatform   = $probe.activePlatform
         stages           = $probe.stages
         counts           = $counts
@@ -812,6 +911,23 @@ function Update-IntegrationStatus {
 
 Write-Log "=== hook start ==="
 
+if ($Folder) {
+    # Direct mode (slash command, CI or by hand). Unlike the hook, report errors.
+    try {
+        $abs = (Resolve-Path -LiteralPath $Folder -ErrorAction Stop).Path
+        $integrationFolder = Find-IntegrationFolder -StartPath (Join-Path $abs "status.json") -RepoRoot $repoRoot
+        if (-not $integrationFolder) { throw "$Folder is not an integration folder (specs/<domain>/NNN-<slug>/)" }
+        Update-IntegrationStatus -IntegrationFolder $integrationFolder -RepoRoot $repoRoot
+        Write-Log "direct ($RefreshedBy) updated $integrationFolder/status.json"
+        Write-Output "refresh-status: wrote $integrationFolder\status.json"
+        exit 0
+    } catch {
+        Write-Log "ERROR direct: $($_.Exception.Message)"
+        [Console]::Error.WriteLine("refresh-status: $($_.Exception.Message)")
+        exit 1
+    }
+}
+
 try {
     $payloadJson = [Console]::In.ReadToEnd()
     Write-Log "main: read payload length=$($payloadJson.Length)"
@@ -840,11 +956,19 @@ try {
     try { $absPath = (Resolve-Path -Path $filePath -ErrorAction Stop).Path }
     catch { $absPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $filePath)) }
 
-    # A PRD edit (specs/PRD.md) affects the Spec stage of every greenfield integration,
-    # but PRD.md lives outside any NNN-<slug> folder, so refresh them all. Enumerate at
-    # fixed depths (specs/NNN-slug and specs/<domain>/NNN-slug) to avoid recursing into
+    # Some inputs live outside every NNN-<slug> folder but feed stages of all of them:
+    #   specs/PRD.md                      -> stage 1 staleness (greenfield)
+    #   .spec2integration/state.json      -> stage 7 and activePlatform (written by /platform)
+    #   specs/biztalk/*.md                -> stages 0a/0b (written by /biztalk-inventory)
+    # An edit to any of them refreshes every integration. Enumerate at fixed depths
+    # (specs/NNN-slug and specs/<domain>/NNN-slug) to avoid recursing into
     # node_modules / bin under tests-mstest.
-    if ([System.IO.Path]::GetFileName($absPath) -eq "PRD.md") {
+    $leafName = [System.IO.Path]::GetFileName($absPath)
+    $relEdited = $absPath.Substring([Math]::Min($repoRoot.Length, $absPath.Length)).TrimStart('\', '/') -replace '\\', '/'
+    $isGlobalInput = ($leafName -eq "PRD.md") -or
+                     ($relEdited -eq ".spec2integration/state.json") -or
+                     ($relEdited -match '^specs/biztalk/[^/]+\.md$')
+    if ($isGlobalInput) {
         $specsRoot = Join-Path $repoRoot "specs"
         $refreshed = 0
         Get-ChildItem -Path $specsRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
@@ -858,7 +982,7 @@ try {
                 }
             }
         }
-        Write-Log "PRD edit ($absPath) - refreshed $refreshed integration folder(s)"
+        Write-Log "shared input edit ($relEdited) - refreshed $refreshed integration folder(s)"
         exit 0
     }
 

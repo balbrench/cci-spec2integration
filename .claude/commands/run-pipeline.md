@@ -6,7 +6,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Agent
 
 Orchestrate the full Spec2Integration pipeline end-to-end, stopping before deployment.
 
-This prompt is a **meta-runner**. It invokes the existing slash-commands in sequence and gates on `status.json` between stages. It does NOT itself produce or modify any pipeline artifact, and per the `pipeline-status` skill it MUST NOT write `<folder>/status.json` — only the invoked sub-prompts do.
+This prompt is a **meta-runner**. It invokes the existing slash-commands in sequence and gates on `status.json` between stages. It does NOT itself produce or modify any pipeline artifact, and per the `pipeline-status` skill it MUST NOT write `<folder>/status.json` — only `scripts/refresh-status.ps1` does (run by the status hook when the sub-prompts' agents write their artifacts, or directly by sub-prompts that have Bash).
 
 ## Arguments
 
@@ -73,7 +73,7 @@ If `status.json` is absent on a folder that already contains `spec.md`, run `/st
 
 After each invoked sub-prompt returns:
 
-1. Re-read `<folder>/status.json` (the sub-prompt is required to refresh it as its last step, per the `pipeline-status` skill).
+1. Re-read `<folder>/status.json`. The status hook rebuilds it from the agents' outputs, so it reflects what the sub-prompt produced. If it looks out of date (for example `generatedAt` is older than the stage's artifact because hooks are disabled), run `/status <folder>` to rebuild it, then re-read it.
 2. Find the row for the stage that just ran. If `status != done`, retry the sub-prompt **once**. If still not `done`, **STOP** with: `"Stage <id> <name> did not reach done after retry. Last refreshedBy=<value>. Recover with: <command>."`
 3. Inspect `counts.sev1`, `counts.sev2`, `counts.blockedFlows` per the rules in "Stop conditions" below before proceeding.
 4. **Pause checkpoint.** If `--pause-after <stage>` was supplied and the stage that just reached `done` is the one it names (per the mapping in "Pause checkpoints" below), **STOP** with the review message — *after* the stage's own gates (clarifications / Sev) have passed, but *before* invoking the next stage's command.
@@ -198,7 +198,7 @@ Conditions **not** fixable by the loop (always halt immediately even with `--aut
 - Open clarifications without `--auto-accept-clarifications` (the orchestrator never invents business answers).
 - Any remediation agent returned `unfixable`.
 
-The auto-fix loop must refresh `<folder>/status.json` indirectly — i.e. by re-invoking the stage command, which itself refreshes status per the `pipeline-status` skill. The orchestrator still never writes `status.json` directly.
+The auto-fix loop never writes `<folder>/status.json`: re-invoking the stage command produces fresh artifacts and reports, and the status hook rebuilds the file from them. The orchestrator only reads it.
 
 ## Stop conditions (summary)
 

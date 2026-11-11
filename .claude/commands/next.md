@@ -27,7 +27,7 @@ Steps:
    - `refreshedBy`
    - any blocking counts from `counts` (`openClarifications`, `sev1`, `blockedFlows`, `staleStages`)
    - the `staleness` array (each entry has `stage`, `stagename`, `stalerThan`, `reason`)
-   - `staleness_probed` (boolean; `false` means the file was refreshed by a command without Bash access — staleness has not been checked since)
+   - `staleness_probed` (boolean; `scripts/refresh-status.ps1` always writes `true`, so `false` or absent means the file predates the script and staleness has not been checked)
 
 4. Print a concise next-step summary:
 

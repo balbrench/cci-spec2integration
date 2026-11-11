@@ -73,6 +73,11 @@ For every `flows[].steps[]` that has a `mappingRef`:
 - The value must match a `mappings[].name` in the same IR file.
 - Finding: `MAPPING_REF_UNRESOLVED` (Sev-1) — `"step '{id}' mappingRef '{ref}' not found in mappings[]"`.
 
+The same check applies to the run-envelope mapping references: every `steps[].errorHandling.attemptMappingRef` and every flow-level / top-level `errorHandling.dlq.mappingRef` must name a `mappings[].name`. Finding: `MAPPING_REF_UNRESOLVED` (Sev-1). In addition, a `dlq.mappingRef` mapping's `source.messageRef` must be the message type of the flow's trigger channel (`schemaRef`), because it receives the trigger message as received — `DLQ_MAPPING_SOURCE_MISMATCH` (Sev-2). An `attemptMappingRef` mapping's source and target should be the same message type (it updates a record) — `ATTEMPT_MAPPING_SHAPE` (Sev-3) when they differ.
+
+### resultKey use
+`resultKey` is only meaningful on `enrich` and `invoke` steps, and `payloadKey` only on `send` and `invoke` steps. On any other step type, emit `RESULT_KEY_IGNORED` (Sev-3). A `payloadKey` must name a context key produced earlier in the flow; otherwise the step would send nothing — `PAYLOAD_KEY_UNPRODUCED` (Sev-2). Every `context.<key>` that an expression or mapping in a flow reads should be produced in that flow — by the trigger or a mapping output (`context.<lowerCamel(messageType)>`), a `resultKey`, a key declared in `tests[].context`, or one of the runtime keys (`failedStep`, `attemptResult`, `attemptedAt`). An unproduced key is the `TRACKED_CONTEXT_KEY_UNKNOWN` (Sev-3) finding, extended from `tracked[]` to predicates and mapping rules.
+
 ### schemaRef file existence
 For every `messages[].schemaRef`:
 - The referenced file must exist relative to the integration folder.
@@ -209,7 +214,7 @@ Do not run this check for `http`, `blob`, or `timer` channels. Those bindings ar
 For every entry in `flows[].tests[]`:
 - `trigger.channel` must equal the enclosing flow's `trigger`. Finding: `FLOWTEST_TRIGGER_MISMATCH` (Sev-1) — `"flow '{flow}' test '{test}' trigger channel '{ch}' does not match flow trigger '{flowTrigger}'"`.
 - `trigger.path`, when present, must resolve to an existing file relative to the IR. Finding: `FLOWTEST_FIXTURE_MISSING` (Sev-1).
-- Every `expect[].channel` must resolve to a `channels[]` entry. Finding: `FLOWTEST_EXPECT_CHANNEL_UNRESOLVED` (Sev-1).
+- Every `expect[].channel` must resolve to a `channels[]` entry, or be an invoke-request pseudo-channel `<dependency>.<operationId>` where `<dependency>` is a `dependencies[].name` and the flow has an `invoke` step with that `dependency` and `operationId` (the FlowTester records each invoke attempt's outbound request there). Finding: `FLOWTEST_EXPECT_CHANNEL_UNRESOLVED` (Sev-1).
 - Every `expect[].step` must resolve to a step id within the same flow. Finding: `FLOWTEST_EXPECT_STEP_UNRESOLVED` (Sev-1).
 - Every `faults[].step` must resolve to a step id within the same flow. Finding: `FLOWTEST_FAULT_STEP_UNRESOLVED` (Sev-1).
 - Every `expect[].error.dlqChannel` must resolve to a `channels[]` entry. Finding: `FLOWTEST_DLQ_CHANNEL_UNRESOLVED` (Sev-1).
@@ -218,7 +223,7 @@ For every entry in `flows[].tests[]`:
 For every `flows[]` entry:
 - If `tracked` is empty or absent, and the flow's trigger channel references a message with a `correlationId`, emit `TRACKED_CORRELATION_ID_MISSING` (Sev-2) — packs need an explicit binding to carry correlation into platform observability. `reviewer` promotes this to an Article IV citation.
 - Every `tracked[].source` that starts with `$context.` should resolve to a context key populated by an earlier step; otherwise emit `TRACKED_CONTEXT_KEY_UNKNOWN` (Sev-3) — best-effort, warn only.
-- Every `metrics[].source` must be either a body path, a header name, or a `$context.` reference; any other prefix is `METRIC_SOURCE_UNRECOGNISED` (Sev-2).
+- Every `metrics[].source` must be a body path, a header name, a `$context.` / `context.` reference, a literal (counters typically use `'1'`), or a JSONata expression over the run envelope (`body`, `headers`, `context` — e.g. `$count(context.releasedNotificationClaims)`), matching the schema's `flowMetric.source` description. A source that is none of these is `METRIC_SOURCE_UNRECOGNISED` (Sev-2). A context key the expression reads that no earlier step or `resultKey` produces is `TRACKED_CONTEXT_KEY_UNKNOWN` (Sev-3), as for `tracked[]`.
 - If `logSampling.rate` is `0` and `logSampling.level` is `trace` or `debug`, emit `LOG_SAMPLING_INCONSISTENT` (Sev-3) — sampling nothing while asking for verbose levels is almost always a mistake.
 
 ### Custom code — codeRef file existence
@@ -279,13 +284,13 @@ For every `flows[]` entry, build the step-control-flow graph:
 
 - **Nodes**: every `flows[].steps[].id`.
 - **Edges**:
-  - From `steps[i]` to `steps[i+1]` when `steps[i]` has no `next` and no `routes` — array order is implicit fallthrough.
   - From `steps[i]` to the step named by `next` when `next` is set.
   - From `steps[i]` to every `routes[].next` target when `routes` is set.
+  - From `steps[i]` to every id in `targets[]` for `type: recipientList` and `type: scatterGather` steps.
   - From `steps[i]` to the step named by `errorHandling.fallback` when set.
   - For `type: saga` steps: from the saga step to every `children[].forward` AND every `children[].compensate`.
 
-When `next` and `routes` are both absent and there is no next sibling in the array, the step is terminal (control returns to the runtime). That is normal — terminal nodes are not "unreachable".
+**Array order never creates an edge.** A step with no `next`, no `routes`, and no `targets[]` is **terminal**: its branch ends there and control returns to the runtime, wherever the step sits in the array. This is the same rule the `ir-authoring` skill, the FlowTester, the visualizer, and the platform compilers follow. Terminal nodes are normal, not "unreachable". A flow written as if steps ran in array order, with no `next` links, surfaces here as `STEP_UNREACHABLE` on the steps that nothing points to — which is the intended signal to add the missing `next`.
 
 #### Cycle detection
 

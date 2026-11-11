@@ -85,7 +85,7 @@ under <folder> will be overwritten from the spec/IR. This is the destructive pat
 - `/lifecycle <folder>` (no verb) — show the current lifecycle and the list of frozen stages.
 - `/lifecycle freeze <folder> --stage 10` — freeze only the named stage(s).
 
-The background `refresh-status.ps1` hook and every agent/command refresh **MUST preserve** the top-level `lifecycle` key and each `stages[].frozen` flag — exactly as they preserve `artifactHashes` and `lastImplement`. A refresh that recomputes a stage row keeps that row's `frozen` flag unless `/lifecycle` explicitly changes it.
+`scripts/refresh-status.ps1`, the only writer of `status.json` stage rows (see the `pipeline-status` skill), **preserves** the top-level `lifecycle` key and each `stages[].frozen` flag on every rebuild, exactly as it preserves `artifactHashes` and `lastImplement`. Only `/lifecycle` changes them; when it does, it rewrites only those keys and keeps everything else.
 
 ## status.json fields this skill adds
 

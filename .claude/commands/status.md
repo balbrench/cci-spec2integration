@@ -4,7 +4,7 @@ argument-hint: [spec-folder]
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
-Show migration status for an integration folder. This prompt is **read-only** — it does not invoke any agent and does not mutate any file. It scans the folder and prints a checklist plus a recommended next command.
+Show migration status for an integration folder. This prompt is **read-only** with respect to pipeline artifacts — it does not invoke any agent. It runs `scripts/refresh-status.ps1` to rebuild `<folder>/status.json`, then prints a checklist plus the recommended next command from that file.
 
 Steps:
 
@@ -16,64 +16,13 @@ Steps:
 
    This is a read-only command: consult `activeIntegration` as a default but do **not** modify it.
 
-2. Probe the following artifacts and record `done | missing | blocked | covered | stale` for each. Read each file only once; cache findings. (Staleness is computed in step 3 — leave the initial probe at `done`/`missing`/`blocked` and let step 3 upgrade `done` → `stale` where appropriate.)
+2. Rebuild the status file. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /status` (pwsh on Linux/macOS). The script is the only writer of `<folder>/status.json`: it probes every stage from disk (artifacts and the verdicts inside report files), computes staleness from mtimes, computes `next`, and carries forward the preserved keys (`artifactHashes`, `lastImplement`, `lifecycle`, `stages[].frozen`, `specCoverage`). Do not probe stages, compute staleness or `next`, or write `status.json` yourself. If the script fails, print its error output and stop.
 
-   | Stage | Artifact | Done check |
-   |---|---|---|
-   | 0 Source inventory (BizTalk only) | `specs/biztalk/biztalk-inventory.md` | file exists; count `migrationHint:` lines |
-   | 1 Spec | `<folder>/spec.md` | file exists; count `OQ-` lines |
-   | 1a Clarifications | `<folder>/clarifications.md` | file exists OR spec.md says "no open clarifications" |
-   | 2 Data model | `<folder>/data-model.md` | file exists |
-   | 3 Contracts | `<folder>/contracts/openapi.yaml` AND `contracts/asyncapi.yaml` AND any file under `contracts/schemas/` | all three present |
-   | 3a Contracts lint | `<folder>/contract-lint-report.json` | exists; verdict `PASS` |
-   | 4 Mappings (STM) | `<folder>/mappings/*.md` | one per `mappings[].name` in IR |
-   | 5 IR | `<folder>/integration-ir.yaml` | file exists; count `flows:`, `channels:`, `mappings:`, BLOCKED-comments |
-   | 5a IR validation | `<folder>/ir-validation-report.json` | exists; verdict `PASS` |
-   | 5b STM drift | `<folder>/stm-drift-report.json` | exists; no `STM_DRIFT` findings |
-   | 5c Secret scan | `<folder>/secret-scan-report.json` | exists; zero findings |
-   | 5d PII flow | `<folder>/pii-flow-report.json` | exists; verdict `PASS` |
-   | 5e Review | `<folder>/review-report.json` | exists; `sev1=0` |
-   | 6 Mapping tests | `<folder>/mapping-test-report.json` | exists; `failed=0` |
-   | 6a Flow tests | `<folder>/flow-test-report.json` | exists; `failed=0` |
-   | 7 Platform pack | `.spec2integration/state.json` | exists; `activePlatform` non-empty |
-   | 8 Plan | `<folder>/plan.md` | exists (NOT `plan-blocked.md`) |
-   | 9 Tasks | `<folder>/tasks.md` | exists |
-   | 10 Implement | per platform — for `azure`: `<folder>/app/<flow>/workflow.json` for every non-BLOCKED flow in IR | one workflow per flow |
-   | 11 Tests | per platform — for `azure`: `<folder>/tests-mstest/**/*.csproj` | exists |
-   | 12 Deploy | per platform — for `azure`: `<folder>/azure.yaml` AND `<folder>/.azure/` | both exist |
+3. Read `<folder>/status.json` and take from it: `activePlatform`, `lifecycle`, `stages[]` (id, name, status, summary, frozen), `counts`, `staleness`, `next`, `refreshedBy`, `generatedAt`.
 
-3. Compute staleness per the dependency map in `.claude/skills/pipeline-status/SKILL.md`. For each downstream stage that has produced its primary artifact, use `stat -c %Y <file>` (one batched Bash call is fine — e.g. `stat -c '%Y %n' <folder>/spec.md <folder>/data-model.md <folder>/integration-ir.yaml ...`) to compare its mtime against each upstream source named in the map. For directory sources (`contracts/`, `mappings/`), take the newest mtime within the directory. Record a `staleness` entry for every downstream artifact whose mtime is older than any upstream source.
+4. Render every row from the `stages[]` entries; do not re-derive a status or summary. Map `status` to the marker: `done`/`covered` → `[x]`, `missing` → `[ ]`, `blocked` → `[!]`, `stale` → `[~]`.
 
-4. Determine the next recommended command using this precedence (staleness wins, then first unmet stage):
-
-   ```
-   any stage stale     → re-run the producing command for the earliest stale stage
-                         (reason: "<upstream-file> edited after <downstream-artifact>")
-   missing inventory   → /biztalk-reverse-engineer <source>   (BizTalk source path only)
-   missing spec        → /specify
-   open OQs > 0        → /clarify
-   missing data model  → /model
-   missing contracts   → /contracts
-   missing mappings    → /map
-   missing IR          → /architect
-   missing mapping tests → /test-mappings <folder>
-   missing flow tests    → /test-flows <folder>  (only when any flow declares tests[])
-   review not run OR sev1 > 0 → /review <folder>
-   no platform pack    → /platform <pack>
-   missing plan        → /plan <folder>
-   missing tasks       → /tasks <folder>
-   missing impl        → /implement-<plat> <folder>
-   missing tests       → /test-<plat> <folder>
-   never deployed      → /deploy-<plat> <folder>
-   all green           → "Pipeline complete. Re-run /review after any source change."
-   ```
-
-   The producing command for each stage:
-   `1→/specify`, `1a→/clarify`, `2→/model`, `3→/contracts`, `4→/map`, `5→/architect`,
-   `5e→/review`, `6→/test-mappings`, `6a→/test-flows`, `8→/plan`, `9→/tasks`,
-   `10→/implement-<plat>`, `11→/test-<plat>`.
-
-5. Print the status block (use ASCII `[x]` / `[ ]` / `[!]` / `[~]`; never emojis):
+5. Print the status block (use ASCII `[x]` / `[ ]` / `[!]` / `[~]`; never emojis). The text after each artifact column is the row's `summary`; the footer counts come from `counts` and `staleness`; `Next step` is `next.command` (followed by `Why: <next.reason>`):
 
    ```
    === Migration Status: <folder> ===
@@ -128,48 +77,12 @@ Steps:
    `/run-pipeline --folder <folder>` to resume from that stage.
    ```
 
-7. Also write a machine-readable `<folder>/status.json` so the IR visualizer can render a status pill. Schema:
-
-   ```json
-   {
-     "folder": "<relative path>",
-     "generatedAt": "<ISO-8601 UTC>",
-     "refreshedBy": "/status",
-     "activePlatform": "<name or null>",
-     "stages": [
-       { "id": "0a", "name": "Inventory", "status": "done|missing|blocked|covered|stale", "summary": "..." },
-       { "id": "0b", "name": "Catalogue", "status": "done|missing|blocked|covered|stale", "summary": "..." },
-       { "id": "1",  "name": "Spec",      "status": "done|missing|blocked|covered|stale", "summary": "..." }
-     ],
-     "counts": {
-       "openClarifications": 0,
-       "closedClarifications": 0,
-       "sev1": null,
-       "sev2": null,
-       "sev3": null,
-       "blockedFlows": 0,
-       "staleStages": 0,
-       "azureFunctionDeps": 0
-     },
-     "staleness": [
-       { "stage": "5", "stagename": "IR", "stalerThan": "spec.md", "reason": "spec.md edited after integration-ir.yaml" }
-     ],
-     "staleness_probed": true,
-     "next": { "command": "/review specs/...", "reason": "review not yet run" }
-   }
-   ```
-
-   `refreshedBy` is set by whichever prompt last wrote the file (e.g. `/review`, `/clarify`, `/status`). This is purely diagnostic — the visualizer uses it for the footer.
-
-   **Preserved keys (do not overwrite):** If the existing `status.json` contains `artifactHashes` or `lastImplement` (written by `/implement-<platform>`), carry them forward unchanged into the new write. These keys are owned by the implement command, not by `/status`. Wiping them would break `/drift-check`.
-
-8. Print one final line:
+7. Print one final line:
 
    ```
    Last refresh: <refreshedBy> at <generatedAt>. Tip: open the IR visualizer (Spec2Integration VS Code extension → Open IR Visualizer) for a graphical view of this status.
    ```
 
 Notes:
-- This prompt MUST NOT call any agent. It MUST NOT modify `spec.md`, `integration-ir.yaml`, or any artifact other than `<folder>/status.json`.
-- `status.json` is the only mutation; it is purely derived state and may be regenerated at any time. It does not violate Article VIII because it is per-integration, not pipeline-global mutable state.
-- For a BizTalk folder where there are no MSIs (and inventory was produced from source), still mark stages 0a (Inventory) and 0b (Catalogue) as `done`.
+- This prompt MUST NOT call any agent. It MUST NOT modify `spec.md`, `integration-ir.yaml`, or any other artifact, and it does not edit `<folder>/status.json` itself — the script writes it.
+- `status.json` is purely derived state and may be regenerated at any time. It does not violate Article VIII because it is per-integration, not pipeline-global mutable state. See the `pipeline-status` skill for the stage table, staleness map and next-step precedence the script applies.

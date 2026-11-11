@@ -359,6 +359,7 @@ flows:
 - One flow per business process (don't bundle)
 - Steps form a DAG — cycles are invalid
 - Every branch must reach a `send` or a terminal step with no `next`
+- Control flow is explicit: a step with no `next`, `routes`, or `targets[]` ends its branch; array order never implies sequence, so linear flows still need `next` on every non-final step
 - Prefer structured router predicates: `when: { engine: jsonata, expression: "..." }`
 
 ### Choosing the target compute host (Azure pack)

@@ -37,13 +37,24 @@ Apply a **targeted change** to an integration whose artifacts are already deploy
 
    `--agent <name>` overrides this table. If the change is **ambiguous** (touches two+ unrelated artifact classes, or you cannot identify the files), ask the user to confirm the agent/files before proceeding — do not guess across a destructive seam.
 
-5. **Read the existing target artifact(s) first**, so the agent edits rather than regenerates. Then invoke the owning agent via the `Agent` tool with this exact directive (the agents carry the authoritative knowledge of correct ADF/Bicep/SQL/Dataverse structure; hand-editing them is how silent bugs enter):
+5. **Read the existing target artifact(s) first**, so the agent edits rather than regenerates. For `activePlatform: azure` (and not `--dry-run`), also take a baseline: run `scripts/check-azure-artifacts.ps1 -Folder <folder>` (static checks only, no `-Build`/`-Test`, no `-ReportFile`) and keep its `ERROR` lines, so step 6a can tell errors the edit caused from errors that were already there. Then invoke the owning agent via the `Agent` tool with this exact directive (the agents carry the authoritative knowledge of correct ADF/Bicep/SQL/Dataverse structure; hand-editing them is how silent bugs enter):
 
-   > Read the existing artifact(s) at `<path(s)>`, then make this targeted change: `<description>`. Do **not** regenerate other artifacts, and do **not** re-emit files you were not asked to change — edit only the listed file(s). Preserve all surrounding structure, comments, and tokens. Do not write `status.json` (the calling command owns the refresh).
+   > Read the existing artifact(s) at `<path(s)>`, then make this targeted change: `<description>`. Do **not** regenerate other artifacts, and do **not** re-emit files you were not asked to change — edit only the listed file(s). Preserve all surrounding structure, comments, and tokens. Do not write `status.json` (`scripts/refresh-status.ps1` is its only writer).
 
    If `--dry-run` was set, instead print: the resolved agent, the exact target file list, and the directive above — then stop.
 
 6. After the agent returns, surface what changed (the file list + a one-line summary of each edit) and any TODOs the agent emitted.
+
+6a. **Gate the edit (hard; for `activePlatform: azure`).** A targeted edit to a live artifact is exactly where an unparsed workflow, an uncompiled template or a broken test slips through, because the editing agent has no Bash. Run the same gates `/implement-azure` runs:
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-azure-artifacts.ps1 -Folder <folder> -Build -Test -ReportFile <folder>/implement-gates.json
+
+   (`pwsh` on Linux/macOS.) It checks the whole folder, not just the edited files, because an edit can break something that depends on it: a renamed stored-procedure parameter breaks the workflow that calls it, and a changed workflow breaks its tests. It also rewrites `implement-gates.json`, so stage 10 reflects the edited tree.
+   - **Exit 0:** continue to step 7.
+   - **Errors in a file the agent edited, or caused by the edit:** send the `ERROR` lines back to the same agent (or to the owner of the failing file, per the step-4 table) with the directive "Fix only these errors; do not change anything else", then re-run the gate. Stop after three attempts.
+   - **Errors that were already there before this change** (the same rule and file appear in the step-5 baseline): report them, then continue to step 7, noting them in the decision's **Status**. Do not fix them as part of this change. A build or test failure has no baseline; if it is in a project the edit did not touch and does not depend on, ask the user whether it predates the change rather than guessing.
+   - **Still failing, or a gate could not run** (no `az` or `dotnet`): **stop here.** Do not record the decision as applied and do not re-baseline `artifactHashes` (step 8), so `/drift-check` keeps reporting the edited files as unverified. Leave the edit in the working tree, print the errors, and tell the user the options: fix it with another `/change`, or discard it with `git restore` / `git clean` on the listed files.
+   - `--dry-run` never reaches this step.
 
 7. **Record the decision.** Append a `DD-NN` entry to `<folder>/decisions.md` (create it from `templates/core/decisions.md` if absent — the next number is `max(existing DD-NN) + 1`):
    ```
@@ -56,7 +67,7 @@ Apply a **targeted change** to an integration whose artifacts are already deploy
    - **Status:** applied (not yet deployed)
    ```
 
-8. **Keep the drift baseline honest.** For every file the agent edited, recompute its SHA-256 (PowerShell `Get-FileHash -Algorithm SHA256`, or `sha256sum`) and update that path's entry in the top-level `artifactHashes` object in `<folder>/status.json`. Merge — preserve every other key, including `lifecycle`, every `stages[].frozen` flag, `lastImplement`, and the hashes of files you did **not** change. Set `refreshedBy: "/change"` and `generatedAt` to now. Do **not** flip any stage status or clear any freeze — a targeted edit does not un-freeze the integration.
+8. **Keep the drift baseline honest.** For every file the agent edited, recompute its SHA-256 (PowerShell `Get-FileHash -Algorithm SHA256`, or `sha256sum`) and update that path's entry in the top-level `artifactHashes` object in `<folder>/status.json`. Change only that key — preserve every other key, including `lifecycle`, every `stages[].frozen` flag, `lastImplement`, the stage rows, and the hashes of files you did **not** change. Do **not** flip any stage status or clear any freeze — a targeted edit does not un-freeze the integration. Then run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /change` (pwsh on Linux/macOS) and read the result from `<folder>/status.json`; the script rebuilds the stage rows around the new hashes.
 
 9. Remind the user that the change is applied to the repo but **not deployed**: print the deploy path for the active platform (e.g. for Azure: `Deploy with /deploy-azure <folder>, or push to main to run the integration's deploy.yml (apply-sql for SQL, the data-factory publish job for ADF, azd provision (Incremental) for Bicep).`). Deployment stays a deliberate, user-run step.
 

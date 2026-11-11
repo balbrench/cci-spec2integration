@@ -12,7 +12,7 @@ Steps:
 3. Call the `mapping-tester` agent with the integration folder path.
 4. Print the verdict (PASS or BLOCKED) and the counts of passed, failed, and skipped tests.
 5. If BLOCKED, list each FAIL finding by mapping name and test fixture so the user knows exactly what to fix.
-6. Refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Mark stage 6 (Mapping tests) as `done` with summary `pass: N, fail: N, skip: N`; if `failed > 0` mark `blocked` instead.
+6. Run `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /test-mappings` (pwsh on Linux/macOS) and read the result from `<folder>/status.json`.
 7. Read the refreshed `<folder>/status.json` and ask one short follow-up question in chat: `What do you want to do next?`
 	- If the chat surface supports selectable options, offer them as choices.
 	- Otherwise render a numbered list and wait for the user's reply.

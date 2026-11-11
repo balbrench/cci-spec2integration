@@ -12,8 +12,9 @@ The user-facing prompt layer is now grouped by role so people do not have to rea
 
 - `Guided` prompts orchestrate multiple agents or stages. Examples: `/run-pipeline`, `/prepare-for-implementation`, `/biztalk-reverse-engineer`.
 - `Manual` prompts move one primary artifact forward. Examples: `/specify`, `/contracts`, `/architect`, `/implement-azure`.
-- `Reporting` prompts summarise state or structure without advancing the pipeline. Examples: `/next`, `/status`, `/visualize`, `/ir-diff`, `/drift-check`.
+- `Reporting` prompts summarise state or structure without advancing the pipeline. Examples: `/next`, `/status`, `/visualize`, `/ir-diff`, `/drift-check`, `/analyze`, `/reconcile`, `/idd`.
 - `Recovery` prompts target validation and unblock loops. Examples: `/review`, `/platform`, `/test-mappings`, `/test-flows`, `/test-azure`.
+- `Maintenance` prompts change a deployed integration without regenerating it: `/change`, `/lifecycle`.
 - `Advanced` prompts are optional specialist utilities. Example: `/domain`.
 
 That taxonomy exists to reduce navigation overhead. The agents below remain deliberately granular because the constitution still enforces one agent per primary artifact or concern.
@@ -22,7 +23,7 @@ That taxonomy exists to reduce navigation overhead. The agents below remain deli
 
 ---
 
-## Core Agents (20 — platform-neutral)
+## Core Agents (21 — platform-neutral)
 
 ### prd-author
 
@@ -308,7 +309,7 @@ Regenerates each STM document from the IR's `mappings[]` block and byte-compares
 | **Outputs** | `traceability-matrix.md`, `spec-coverage-report.md`, `spec-coverage-report.json` |
 | **Tools** | read, edit, search |
 
-Runs a rule pack (FTP / HTTP / DLQ / retry / idempotency / flat-file / XSLT-fidelity / classification / etc.) to verify every `MUST` requirement in spec.md is satisfied by an IR construct. Reverse-traces every IR construct back to a sourcing FR/NFR. Unmatched MUSTs are Sev-1 `FR_NOT_SATISFIED`; un-backed IR constructs are Sev-2 `IR_FEATURE_UNSPECIFIED`; unresolved OQs not tracked in IR are Sev-2 `OPEN_QUESTION_UNRESOLVED`.
+Runs a rule pack (FTP / HTTP / DLQ / retry / idempotency / flat-file / XSLT-fidelity / classification / etc.) to verify every `MUST`/`SHALL` requirement in spec.md is satisfied by an IR construct. Reverse-traces every IR construct back to a sourcing FR/NFR. Unmatched MUSTs are Sev-1 `FR_NOT_SATISFIED`; un-backed IR constructs are Sev-2 `IR_FEATURE_UNSPECIFIED`; unresolved OQs not tracked in IR are Sev-2 `OPEN_QUESTION_UNRESOLVED`.
 
 ---
 
@@ -326,7 +327,21 @@ Uses trufflehog (preferred) or gitleaks. Any detected secret is a Sev-1 violatio
 
 ---
 
-## Azure Pack Agents (9)
+### solution-design-author
+
+| | |
+|---|---|
+| **Purpose** | Render the client-facing Solution Design Document (IDD) |
+| **Invoked by** | `/idd` |
+| **Inputs** | `spec.md`, `integration-ir.yaml`, `contracts/`, `data-model.md`, `mappings/`, `decisions.md` |
+| **Outputs** | `docs/solution-design.md` |
+| **Tools** | read, edit, search |
+
+Renders the machine artifacts into one narrative document and regenerates it from the IR, so it never drifts by hand. Decisions come only from the `DD-NN` registry in `decisions.md`; anything the IR implies but the registry doesn't record is listed under "Undocumented decisions" rather than invented.
+
+---
+
+## Azure Pack Agents (12)
 
 These consume `integration-ir.yaml` and `contracts/` to produce a deployable Azure solution. They never read the PRD, spec, or data model directly. Each flow is routed by `flows[].implementation.host` to one of three host types: Logic Apps Standard (default), Function App, or Data Factory. The matching compiler is skipped when its bucket is empty.
 
@@ -460,6 +475,51 @@ Uses the official Microsoft Logic Apps Standard unit testing SDK. Generates type
 | **Skills** | `eip-to-azure-mapping`, `logicapp-standard-layout` |
 
 Checks reliability (retry, DLQ), security (secrets, identity), cost (SKU), operational excellence (diagnostics), and performance (sizing).
+
+---
+
+### azure-sql-schema-author
+
+| | |
+|---|---|
+| **Purpose** | Author the Azure SQL schema behind every IR `db` dependency |
+| **Invoked by** | `/implement-azure` (after the Logic Apps and ADF compilers) |
+| **Inputs** | `integration-ir.yaml`, `contracts/schemas/`, the emitted `workflow.json` and `adf/` sink datasets |
+| **Outputs** | `sql/01-schema.sql`, `sql/02-procedures.sql`, `sql/03-grants.sql`, `sql/README.md` |
+| **Tools** | read, edit, search |
+| **Skills** | `no-stubs-code-generation`, `pipeline-status` |
+
+Derives tables and stored procedures from evidence — the procedures the workflows actually call and the columns the ADF sinks actually write — plus managed-identity database users with least-privilege grants.
+
+---
+
+### azure-dataverse-binder
+
+| | |
+|---|---|
+| **Purpose** | Bind Dataverse / Dynamics 365 CE specifics onto already-emitted artifacts |
+| **Invoked by** | `/implement-azure` (after the compilers and `azure-connections-binder`); `/change` for Dataverse edits |
+| **Inputs** | `integration-ir.yaml` (a `kind: rest` + `product: dataverse` dependency), the emitted `adf/` and `app/<flow>/workflow.json` |
+| **Outputs** | Refined ADF linked services, datasets and sinks, and Logic Apps Dataverse actions (edited in place) |
+| **Tools** | read, edit, search |
+| **Skills** | `dataverse-365ce`, `no-stubs-code-generation`, `pipeline-status` |
+
+Applies the per-host rules: ADF auth (no `tenantId`, user-assigned MI only), per-activity write methods, alternate keys, lookup binding, null-overwrite and throttling settings, and the application-user snippet. Does not edit `connections.json`.
+
+---
+
+### azure-spec-code-reconciler
+
+| | |
+|---|---|
+| **Purpose** | Reconcile the IR and traced requirements against the generated Azure artifacts |
+| **Invoked by** | `/reconcile`, `/analyze` |
+| **Inputs** | `integration-ir.yaml`, `spec-coverage-report.json` (optional), `app/`, `adf/`, `sql/`, `infra/`, `FunctionApps/`, `Functions/` |
+| **Outputs** | `reconciliation-report.md`, `reconciliation-report.json` |
+| **Tools** | read, write, search |
+| **Skills** | `logicapp-standard-layout` |
+
+Four directions: IR constructs with no implementing artifact, artifacts no IR construct accounts for, MUST-level requirements the IR satisfies but nothing implements, and transforms whose equivalence can't be confirmed. Every finding is Sev-3 and gates nothing; `reviewer` does not aggregate it. Reads requirement text from `spec-coverage-report.json`, never `spec.md`.
 
 ---
 

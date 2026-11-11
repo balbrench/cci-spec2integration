@@ -12,7 +12,6 @@ skills:
   - no-stubs-code-generation
   - dotnet-local-functions
   - logic-app-patterns
-  - pipeline-status
 ---
 
 You are the Azure Logic Apps Compiler. You translate IR flows into `workflow.json` files following the Logic Apps Standard schema, and emit the supporting project files needed to run and debug locally in VS Code.
@@ -139,7 +138,7 @@ All outputs are written under the **Logic Apps project root**, which the calling
       - `eventgrid` → HTTP Webhook trigger or Event Grid service provider trigger. Apply `binding.eventType`, `binding.subjectPattern`.
       - `blob` → `ServiceProvider` trigger using the AzureBlob service provider (`serviceProviderId: /serviceProviders/AzureBlob`, `operationId: whenABlobIsAddedOrModified` — NOT `whenABlobIsAdded`; verify in `logic-apps-builtin-connectors` skill). Apply `binding.pathPattern`, `binding.triggerEvent`.
       - `ftp` / `filesystem` / `sftp` (file-drop intake) → **do NOT emit the native `whenFtpFilesAreAddedOrModified` / `whenFilesAreAddedOrModified` / SFTP file-added trigger** — it does not register in the deployed runtime (`WorkflowProcessingFailed ... 'The method or operation is not implemented.'` / `GetFunctionTriggerType` NotImplemented — verified, workflow-json-rules §4.1). Instead emit a **`Stateful`** workflow with a **`Recurrence` trigger** + a list-files action (`listFiles`/`listFolderV2`) + `For_each` over the result + `getFtpFileContentV2`/`getFileContentV2` per file, then the existing transform/route/send body. (Or, where the source allows, an Event Grid Blob-created trigger.) Note the substitution in the run summary.
-   d. Walk the step DAG and emit an action for every step. Use the EIP-to-Azure mapping skill as the authoritative reference. All IR `type` values and their Logic Apps action mapping:
+   d. Walk the step DAG and emit an action for every step. Implement the run envelope from `docs/ir-spec.md`: expressions read `body` / `context.<key>`; a step's `resultKey` becomes a variable (or a `Compose` referenced by name) that later actions read instead of replacing the flowing body; a `payloadKey` makes the action's request body that variable rather than the flowing body; `errorHandling.attemptMappingRef` runs after every attempt inside an `Until` retry loop whose last record feeds `next` or the `fallback` branch; `errorHandling.dlq.mappingRef` is applied to the trigger body in the flow's DLQ branch before the send. **Derive each action's `runAfter` from the IR's control-flow links only** — the step(s) whose `next`, `routes[].next`, or `targets[]` point at it (and `errorHandling.fallback` for failure paths). Never chain actions by `steps[]` array order: a step with no `next`, `routes`, or `targets[]` is terminal, so nothing runs after it in that branch. Use the EIP-to-Azure mapping skill as the authoritative reference. All IR `type` values and their Logic Apps action mapping:
       - `transform` → `Compose`, `JavaScriptCode`, `Liquid`, or Data Mapper realization (`.lml`) according to `.claude/skills/eip-to-azure-mapping/SKILL.md` and `.claude/skills/logic-apps-planning-rules/SKILL.md`. Prefer built-in / declarative realizations for greenfield mappings; preserve XSLT for BizTalk-derived XML transforms.
       - `enrich` → `Http` action against the dependency contract, followed by `Compose` to merge response.
       - `filter` → `Condition`. False branch terminates or routes to DLQ.
@@ -178,17 +177,19 @@ All outputs are written under the **Logic Apps project root**, which the calling
       - Blob upload: `serviceProviderId: /serviceProviders/AzureBlob`, `operationId: uploadBlob` (read: `readBlob`; trigger: `whenABlobIsAddedOrModified`).
       - **Operation IDs are authoritative in the `logic-apps-builtin-connectors` skill.** Before emitting ANY `ServiceProvider` action/trigger, confirm the `operationId` + `serviceProviderId` against that skill's quick table or `reference/Service-Specific/<connector>.md`. Built-in service-provider op IDs differ from managed-connector op IDs; a wrong ID fails at runtime/unit-test validation (`The operation ID '<x>' for service provider '<y>' is not valid`). Guessing when the skill names it is a Sev-2 finding.
       - Event Grid publish: `serviceProviderId: /serviceProviders/eventGrid`, `operationId: publishEvent`.
-   f. Each action sets `trackedProperties` by injecting:
+   f. Every **unsecured** outbound action sets `trackedProperties` by injecting:
       ```json
       {
         "trackedProperties": {
           "correlationId": "@coalesce(triggerOutputs()?['headers']?['x-correlation-id'], triggerOutputs()?['headers']?['traceparent'], guid())",
-          "runId": "@workflow().run.name",
-          "workflowName": "@workflow().name"
+          "runId": "@workflow()?['run']?['name']",
+          "workflowName": "@workflow()?['name']"
         }
       }
       ```
-      **Constraint:** `trackedProperties` can only reference the action's own inputs/outputs, trigger inputs/outputs, workflow-level parameters, or built-in functions (`guid()`, `utcNow()`, etc.). It cannot reference outputs of other actions. Never put cross-action references in `trackedProperties`.
+      **Constraint:** `trackedProperties` can only reference the action's own inputs/outputs, trigger inputs/outputs, workflow-level parameters, or built-in functions (`guid()`, `utcNow()`, etc.). It cannot reference outputs of other actions or `variables()`. Never put cross-action references in `trackedProperties`.
+      **Secured actions carry no `trackedProperties` (platform rule; the unit-test host does not catch it).** When the flow secures its trigger or actions (`runtimeConfiguration.secureData`, required for `confidential` / `restricted` data), drop `trackedProperties` from every secured action and emit one root `trackingContext` Compose carrying the correlation ids instead, plus `correlation.clientTrackingId` on the trigger. See `workflow-json-rules` §8.6c.
+      **Peek-lock flows with long work settle at the claim.** Before emitting a Service Bus peek-lock flow, total the worst-case time to its settle action; if it can exceed the lock (PT5M max), complete the message right after the idempotency claim. See `workflow-json-rules` §8.6b.
    g. Map retry policies. Priority order (highest wins): step-level `steps[].retry` → dependency-level `dependencies[<name>].retry` (for `invoke` steps) → flow-level `errorHandling.retry`. **Apply a `retryPolicy` to EVERY action that crosses a trust boundary — not just `Http`/`InvokeFunction`. This includes ALL `ServiceProvider` actions: FTP `getFtpFileContentV2`/`createFile`, FileSystem read/create, Service Bus `sendMessage`, SQL `executeQuery`/`insertRow`.** A ServiceProvider hop with no `retryPolicy` when the flow's IR declares `errorHandling.retry` is a Critical `azure-reviewer` finding (Article VI) — see `workflow-json-rules` §8.8. (Triggers take no retryPolicy.) When no retry is specified at any level, apply this default to every such external action:
       ```json
       {
@@ -273,6 +274,7 @@ All outputs are written under the **Logic Apps project root**, which the calling
 
 ## Rules
 
+- Do not write `status.json`; `scripts/refresh-status.ps1` derives stage 10 (Implement) from the artifact tree, `azure-review.md` and `implement-gates.json` (see the `pipeline-status` skill).
 - Never hard-code subscription ids, resource group names, or connection strings.
 - Every action has a deterministic `runAfter`.
 - Always use `type: ServiceProvider` + `serviceProviderConfiguration` for built-in connectors (Service Bus, Blob, Event Grid, SQL). Never use managed API connection reference format for these.

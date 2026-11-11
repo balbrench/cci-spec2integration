@@ -29,7 +29,7 @@ Steps:
      Genuinely unresolvable questions can stay OPEN; `/plan` will surface them as
      phase-gate findings rather than blockers.
      ```
-6. Refresh `<folder>/status.json` per `.claude/skills/pipeline-status/SKILL.md`. Update stage 1a to `done` with summary `clarifications.md (<total> total — <closed> signed off, <open> open)`, update stage 1's summary to reflect the new OQ count, and recompute `counts.openClarifications` / `counts.closedClarifications` and the `next` recommendation.
+6. The status hook rebuilds `<folder>/status.json` from the agents' outputs; read it after the agents return. If it looks out of date (for example hooks are disabled), tell the user to run `/status <folder>`.
 7. Read the refreshed `<folder>/status.json` and ask one short follow-up question in chat: `What do you want to do next?`
    - If the chat surface supports selectable options, offer them as choices.
    - Otherwise render a numbered list and wait for the user's reply.

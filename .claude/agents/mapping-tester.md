@@ -52,10 +52,11 @@ The mapping expression is taken from `mappings[].expression` (if style is `expre
 ### Prerequisite check
 Before executing any test, verify:
 ```bash
-node --version && node -e "require('jsonata')"
+node --version && { node -e "require('jsonata')" 2>/dev/null || NODE_PATH="$(npm root -g)" node -e "require('jsonata')"; }
 ```
+Node's `require()` does not search the global npm folder, so a globally installed jsonata (`npm install -g jsonata`) is only found with `NODE_PATH` pointing at `npm root -g`. When the second form of the check is the one that succeeds, run **every** later `node` command in this run with `NODE_PATH="$(npm root -g)"` set as well.
 If either command fails, emit a single Sev-1 finding `RUNTIME_MISSING`:
-> "mapping tests not executed — node or jsonata package not on PATH. Install Node.js and run `npm install -g jsonata` then retry."
+> "mapping tests not executed — node or the jsonata package could not be found, even with NODE_PATH set to `npm root -g`. Install Node.js and jsonata (`npm install -g jsonata` or `npm install jsonata` in the repo), then retry."
 
 Do not attempt further execution. Still write the report files with the `RUNTIME_MISSING` finding.
 
