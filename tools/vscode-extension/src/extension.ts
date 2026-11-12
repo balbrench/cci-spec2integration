@@ -16,6 +16,7 @@ import { loadStageMap, stageCommandTable, StageMap } from './stageMap';
 import { openStageGraph, refreshStageGraph } from './stageGraph';
 import { compose, ComposeContext } from './composer';
 import { sendToChat, onDispatch } from './chatBridge';
+import { startStatusRefresher } from './statusRefresher';
 import { hooksEnabled, recordDispatch, startHooks, stopHooks, testHooks, uninstallHooks } from './hooks';
 import { openVisualizer, refreshVisualizer } from './visualizer';
 import { openProgress, refreshProgress } from './progress';
@@ -479,6 +480,10 @@ export function activate(context: vscode.ExtensionContext): void {
       if (s.focused) refreshAll();
     }),
   );
+
+  // Keep status.json current without relying on Claude Code's PostToolUse hook
+  // (a managed policy can drop it): rerun refresh-status.ps1 on folder changes.
+  context.subscriptions.push(startStatusRefresher(repoRoot));
 
   // Claude Code hooks (opt-in): a localhost listener told by Stop / SubagentStop
   // hooks when a command sent to the chat finishes. A finished run repaints

@@ -455,6 +455,11 @@
           "default": false,
           "description": "Keep an entire pipeline run in a single Claude Code conversation tab instead of opening a new one per command. The first command mints a reusable session via one tool-free headless `claude -p` call (no permission prompts); later commands resume it via the documented `session=` deep link and refocus its tab. Requires the `claude` CLI on PATH and signed in; falls back to a new conversation if a session can't be established. Use 'Reset Pipeline Chat Session' to start a fresh one."
         },
+        "spec2integration.autoRefreshStatus": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Rerun `scripts/refresh-status.ps1` when files in an integration folder change (after a 1.5 s pause; never two runs for the same folder at once), so `status.json` stays current even when Claude Code's `PostToolUse` hook doesn't run, for example under a managed `allowManagedHooksOnly` policy, and for shell, git or out-of-editor edits. Runs are logged to the *Spec2Integration* output channel."
+        },
         "spec2integration.hooks.enabled": {
           "type": "boolean",
           "default": false,

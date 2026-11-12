@@ -126,6 +126,12 @@ is built; resume with `/run-pipeline --folder <folder>`.
   `/lifecycle freeze`) show a 🔒 and point you to `/change` instead. The graph
   is drawn from `status.json` and `schemas/stage-dependencies.json`, and
   repaints whenever `status.json` changes.
+- **Automatic status refresh** (setting `spec2integration.autoRefreshStatus`, on by
+  default). When files in an integration folder change, the extension reruns
+  `scripts/refresh-status.ps1` for it after a 1.5 s pause, so `status.json`, the
+  tree and the graphs stay current. This covers shell, git and out-of-editor edits,
+  and works when a managed policy blocks Claude Code's own `PostToolUse` hook.
+  Runs are logged to the *Spec2Integration* output channel.
 - **Run completion from Claude Code hooks** (opt-in, *Connect Claude Code Hooks*).
   Starts a listener on `127.0.0.1` and adds `Stop` / `SubagentStop` `http` hooks
   to the workspace's `.claude/settings.local.json`. The status bar then shows a

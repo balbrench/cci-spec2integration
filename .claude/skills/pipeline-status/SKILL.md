@@ -9,7 +9,7 @@ description: How `<folder>/status.json` is produced — the derived per-integrat
 
 ## Who writes status.json
 
-**Only `scripts/refresh-status.ps1`.** It runs in two ways:
+**Only `scripts/refresh-status.ps1`.** It runs in three ways:
 
 1. **Automatically**, as the `PostToolUse` hook on `Write|Edit` (`.claude/settings.json`). After any Write/Edit inside `specs/<domain>/NNN-<slug>/` it rebuilds that folder's `status.json`; after an edit to a shared input (`specs/PRD.md`, `.spec2integration/state.json`, `specs/biztalk/*.md`) it rebuilds every integration. It skips edits to `status.json` itself. Either way it tags it `refreshedBy: auto:postwrite-hook`. Agents writing their artifacts and reports with the Write/Edit tools therefore trigger it without doing anything.
 2. **Directly**, by a command that has Bash/PowerShell (`/status`, `/implement-azure`, `/test-azure`, `/test-mappings`, `/test-flows`, `/deploy-azure`, `/change`, `/biztalk-reverse-engineer`) or by hand:
@@ -17,6 +17,7 @@ description: How `<folder>/status.json` is produced — the derived per-integrat
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/refresh-status.ps1 -Folder <folder> -RefreshedBy /<command>
    ```
    (`pwsh` on Linux/macOS.) Use this after edits the hook cannot see: Bash or script edits, edits made outside Claude Code, CI, or a session where hooks are disabled.
+3. **By the VS Code extension**, when it is installed and `spec2integration.autoRefreshStatus` is on (the default). It watches `specs/**` and `.spec2integration/state.json`, waits 1.5 s after the last change, and runs the script with `-Folder` for the changed integration (every integration for a shared input), tagged `refreshedBy: auto:extension-watcher`. It sees every write path, including Bash, git and edits outside Claude Code, and it keeps working when a managed `allowManagedHooksOnly` policy drops the hook in (1).
 
 **Agents MUST NOT write `status.json`.** An agent reports its outcome by writing its own artifact and, where it has a verdict, its report file (the stage table below lists which). If an agent has an outcome with no report file, the fix is to give it a report file that the script reads, not to write a stage row. Reasons:
 

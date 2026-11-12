@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependency graph coloured by status, highlights stale stages and the edges
   that carried the upstream change, and re-runs a stage from its details pane.
   Frozen stages are locked and point to `/change`.
+- **Automatic status refresh** (setting `spec2integration.autoRefreshStatus`, on by
+  default). Reruns `scripts/refresh-status.ps1` for an integration folder 1.5 s
+  after files in it change, with at most one run per folder at a time. Keeps
+  `status.json` current where a managed `allowManagedHooksOnly` policy stops
+  Claude Code's `PostToolUse` hook, and for shell, git and out-of-editor edits.
 - **Claude Code hook connection** (opt-in setting `spec2integration.hooks.enabled`;
   commands *Connect*, *Test* and *Disconnect Claude Code Hooks*). A localhost
   listener receives `Stop` / `SubagentStop` events, so the status bar shows when
