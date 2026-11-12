@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependency graph coloured by status, highlights stale stages and the edges
   that carried the upstream change, and re-runs a stage from its details pane.
   Frozen stages are locked and point to `/change`.
+- **Checkpoints and revert.** A checkpoint of the integration folder is taken
+  before a stage runs from the tree, stage graph or *Run Next*. Stage rows show
+  files changed since, with *Compare with Last Checkpoint* and *Revert This
+  Stage's Run*; integration rows have *Checkpoint History…*. Revert is byte- and
+  mtime-exact and never touches build output or files outside the folder.
 - **Automatic status refresh** (setting `spec2integration.autoRefreshStatus`, on by
   default). Reruns `scripts/refresh-status.ps1` for an integration folder 1.5 s
   after files in it change, with at most one run per folder at a time. Keeps

@@ -11,7 +11,8 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { PipelineTreeProvider, IntegrationNode, StageNode, DomainNode, BiztalkGroupNode } from './tree';
-import { COMMANDS, findCommand, CommandSpec, NOT_ROW_RUNNABLE, setStageCommands, stageCommand } from './commandCatalog';
+import { COMMANDS, findCommand, findStageForCommand, CommandSpec, NOT_ROW_RUNNABLE, setStageCommands, stageCommand } from './commandCatalog';
+import { checkpointBeforeRun, checkpointInfo, compareCheckpoint, initCheckpoints, revertStage, showCheckpoints } from './checkpoints';
 import { loadStageMap, stageCommandTable, StageMap } from './stageMap';
 import { openStageGraph, refreshStageGraph } from './stageGraph';
 import { compose, ComposeContext } from './composer';
@@ -102,7 +103,11 @@ async function runStageFor(repoRoot: string, folder: string, stageId: string): P
     vscode.window.showErrorMessage(`Unknown command ${name}.`);
     return;
   }
-  await composeAndSend(repoRoot, cmd, folder);
+  const ctx: ComposeContext = { repoRoot, defaultFolder: await defaultFolder(repoRoot, folder) };
+  const prompt = await compose(cmd, ctx);
+  if (prompt === undefined) return; // cancelled: no checkpoint either
+  await checkpointBeforeRun(folder, stageId, name);
+  await sendToChat(prompt);
 }
 
 /** Commands available with or without a workspace open (the launcher surface). */
@@ -222,6 +227,8 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     // next.command already includes the folder arg; send it verbatim so the
     // recommendation (including its reason) is honored exactly.
+    const nextStage = findStageForCommand(nextCommand.split(/\s+/)[0], status?.stages ?? []);
+    if (nextStage) await checkpointBeforeRun(folder, nextStage, nextCommand.split(/\s+/)[0]);
     await sendToChat(nextCommand);
   });
 
@@ -370,6 +377,24 @@ export function activate(context: vscode.ExtensionContext): void {
   reg(context, 'spec2integration.runStage', async (node?: StageNode) => {
     if (!node || !node.stageCommand) return;
     await runStageFor(repoRoot, node.folder, node.stage.id);
+  });
+
+  // Checkpoints: compare / revert a stage's run (taken in runStageFor / runNext).
+  tree.checkpointLookup = checkpointInfo;
+  void initCheckpoints(context, repoRoot, () => tree.refresh());
+  reg(context, 'spec2integration.compareCheckpoint', async (node?: StageNode) => {
+    if (node) await compareCheckpoint(node.folder, node.stage.id);
+  });
+  reg(context, 'spec2integration.revertStage', async (node?: StageNode) => {
+    if (node) await revertStage(node.folder, node.stage.id);
+  });
+  reg(context, 'spec2integration.showCheckpoints', async (node?: IntegrationNode | StageNode) => {
+    const folder = node?.folder ?? (await defaultFolder(repoRoot));
+    if (!folder) {
+      vscode.window.showWarningMessage('No integration selected and no active integration set.');
+      return;
+    }
+    await showCheckpoints(folder);
   });
 
   // Stale-stage graph: dependency graph with per-stage re-run.

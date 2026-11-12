@@ -126,6 +126,15 @@ is built; resume with `/run-pipeline --folder <folder>`.
   `/lifecycle freeze`) show a 🔒 and point you to `/change` instead. The graph
   is drawn from `status.json` and `schemas/stage-dependencies.json`, and
   repaints whenever `status.json` changes.
+- **Checkpoints and one-click revert.** Running a stage from the tree, the stage
+  graph or *Run Next* first checkpoints the integration folder. The stage row then
+  shows how many files the run changed, and its context menu offers *Compare with
+  Last Checkpoint* (diff per file) and *Revert This Stage's Run*. Revert restores
+  the exact bytes and timestamps, recreates deleted files, and deletes files the
+  run created, inside that folder only; build output is left alone. *Checkpoint
+  History…* on an integration row lists older checkpoints. Tracked files go to
+  private git refs; gitignored files and non-git workspaces use the extension's
+  storage. Settings: `spec2integration.checkpoints.enabled`, `.keep` (default 5 per stage).
 - **Automatic status refresh** (setting `spec2integration.autoRefreshStatus`, on by
   default). When files in an integration folder change, the extension reruns
   `scripts/refresh-status.ps1` for it after a 1.5 s pause, so `status.json`, the

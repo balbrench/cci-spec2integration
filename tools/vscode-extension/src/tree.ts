@@ -310,7 +310,12 @@ export interface StageNodeOpts {
   artifactRel?: string;
   /** Folder-relative path of the stage's report, if it exists. */
   reportRel?: string;
+  /** Latest checkpoint taken before this stage was run from the extension. */
+  checkpoint?: { at: string; changed?: number };
 }
+
+/** Looks up a stage's latest checkpoint (src/checkpoints.ts). `token` changes when the folder does. */
+export type CheckpointLookup = (folder: string, stageId: string, token: string) => Promise<StageNodeOpts['checkpoint']>;
 
 export class StageNode extends vscode.TreeItem {
   public readonly artifactRel?: string;
@@ -363,6 +368,11 @@ export class StageNode extends vscode.TreeItem {
         this.deployedUrl ? `🌐 click to open the deployed app — ${this.deployedUrl}` : '',
         this.artifactRel ? `📄 ${this.deployedUrl ? 'azure.yaml' : 'click to open'} \`${this.artifactRel}\`` : '',
         this.reportRel ? `📑 report: \`${this.reportRel}\`` : '',
+        opts.checkpoint
+          ? `⟲ checkpoint ${new Date(opts.checkpoint.at).toLocaleString()}` +
+            (opts.checkpoint.changed !== undefined ? ` · ${opts.checkpoint.changed} file(s) changed since` : '') +
+            ' (right-click to compare or revert)'
+          : '',
       ]
         .filter(Boolean)
         .join('\n\n'),
@@ -377,6 +387,10 @@ export class StageNode extends vscode.TreeItem {
     // Markdown → Markdown preview; integration-ir.yaml → the IR graph visualizer.
     if (this.artifactRel && /(\.md|integration-ir\.ya?ml)$/i.test(this.artifactRel)) tags.push('previewable');
     if (this.reportRel) tags.push('report');
+    if (opts.checkpoint) {
+      tags.push('checkpoint');
+      if (opts.checkpoint.changed) this.description += ` · ⟲ ${opts.checkpoint.changed} changed since checkpoint`;
+    }
     this.contextValue = tags.join(' ');
 
     // Default click: a deployed app opens its live URL; a generated-but-not-run
@@ -410,6 +424,8 @@ export class PipelineTreeProvider implements vscode.TreeDataProvider<vscode.Tree
   readonly onDidChangeTreeData = this._onDidChange.event;
 
   private activeIntegration: string | null = null;
+  /** Set by extension.ts once checkpoints are initialised. */
+  checkpointLookup?: CheckpointLookup;
 
   constructor(private readonly repoRoot: string) {}
 
@@ -506,14 +522,16 @@ export class PipelineTreeProvider implements vscode.TreeDataProvider<vscode.Tree
       for (const s of status?.staleness ?? []) staleByStage.set(String(s.stage), s);
       return Promise.all(
         stages.map(async (s) => {
-          const [artifactRel, reportRel] = await Promise.all([
+          const [artifactRel, reportRel, checkpoint] = await Promise.all([
             resolveArtifact(this.repoRoot, element.folder, s.id),
             resolveReport(this.repoRoot, element.folder, s.id),
+            this.checkpointLookup?.(element.folder, s.id, status?.generatedAt ?? ''),
           ]);
           return new StageNode(element.folder, s, s.id === nextStageId, {
             staleness: staleByStage.get(s.id),
             artifactRel,
             reportRel,
+            checkpoint,
           });
         }),
       );

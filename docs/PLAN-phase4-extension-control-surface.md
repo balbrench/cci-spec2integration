@@ -281,6 +281,15 @@ A bad `/architect` or `/implement-azure` run can overwrite good artifacts. The l
 
 **Retention.** Keep the last *N* checkpoints per stage (setting `spec2integration.checkpoints.keep`, default 5) and prune older refs and storage copies.
 
+**Implemented** (branch `phase4-extension-control-surface`), with these changes from the design above:
+- **Exact bytes.** Tracked files are stored with `git hash-object --no-filters` and written back by the extension, not with `git restore`. Otherwise line-ending conversion (`core.autocrlf`, `.gitattributes text=auto`) could rewrite files on revert.
+- **Original mtimes, not one shared timestamp.** Each file's mtime is recorded and restored, so staleness after a revert matches the state before the run exactly. Files whose content is identical but whose mtime changed get their mtime reset.
+- **Gitignored files go to storage, never into git objects**, because they may hold secrets. Repeat checkpoints hard-link unchanged stored copies, so only changed files take new space.
+- **`specs/` is gitignored in this repo**, so here every checkpoint is a storage copy. On the payments integration (387 files, 3.1 MB) a checkpoint took about 2 s, a diff under 80 ms, and a full revert under 100 ms, byte- and mtime-identical.
+- A checkpoint is taken after the compose wizard returns, just before the command is sent, so a cancelled wizard leaves none. *Run Next* checkpoints the stage `next` points at.
+- Stage rows show "⟲ N changed since checkpoint" (recomputed when `status.json` changes) and offer **Compare with Last Checkpoint** (quick pick of changed files, opens a diff) and **Revert This Stage's Run** (modal confirm listing what is restored, recreated and deleted). Integration rows offer **Checkpoint History…**.
+- 51 unit tests, including temp-repo round trips with `autocrlf`, a staged change in the user's index, a deleted folder, hard-link sharing and pruning.
+
 ### Files
 
 | File | Change |

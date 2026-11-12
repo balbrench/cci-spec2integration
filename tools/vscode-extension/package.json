@@ -192,6 +192,24 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "spec2integration.revertStage",
+        "title": "Revert This Stage's Run",
+        "category": "Spec2Integration",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "spec2integration.compareCheckpoint",
+        "title": "Compare with Last Checkpoint",
+        "category": "Spec2Integration",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "spec2integration.showCheckpoints",
+        "title": "Checkpoint History…",
+        "category": "Spec2Integration",
+        "icon": "$(history)"
+      },
+      {
         "command": "spec2integration.installHooks",
         "title": "Connect Claude Code Hooks (run completion)",
         "category": "Spec2Integration"
@@ -361,6 +379,21 @@
           "command": "spec2integration.runStage",
           "when": "view == spec2integration.pipeline && viewItem =~ /\\brunnable\\b/",
           "group": "inline@4"
+        },
+        {
+          "command": "spec2integration.compareCheckpoint",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\bcheckpoint\\b/",
+          "group": "2_checkpoint@1"
+        },
+        {
+          "command": "spec2integration.revertStage",
+          "when": "view == spec2integration.pipeline && viewItem =~ /\\bcheckpoint\\b/",
+          "group": "2_checkpoint@2"
+        },
+        {
+          "command": "spec2integration.showCheckpoints",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "1_actions@5"
         }
       ],
       "commandPalette": [
@@ -454,6 +487,17 @@
           "type": "boolean",
           "default": false,
           "description": "Keep an entire pipeline run in a single Claude Code conversation tab instead of opening a new one per command. The first command mints a reusable session via one tool-free headless `claude -p` call (no permission prompts); later commands resume it via the documented `session=` deep link and refocus its tab. Requires the `claude` CLI on PATH and signed in; falls back to a new conversation if a session can't be established. Use 'Reset Pipeline Chat Session' to start a fresh one."
+        },
+        "spec2integration.checkpoints.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Checkpoint the integration folder before running a stage from the tree, the stage graph or *Run Next*, so the run can be compared and reverted. Tracked files go to private git refs (`refs/spec2integration/checkpoints/…`, not pushed by a normal `git push`); gitignored files are copied to the extension's workspace storage, never into git. Build output (`bin/`, `obj/`, `node_modules/` …) is skipped."
+        },
+        "spec2integration.checkpoints.keep": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "markdownDescription": "How many checkpoints to keep per integration and stage. Older ones and their git refs are deleted."
         },
         "spec2integration.autoRefreshStatus": {
           "type": "boolean",
