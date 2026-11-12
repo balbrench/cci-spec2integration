@@ -159,6 +159,21 @@ Notes:
 | `src/extension.ts`, `package.json` | Commands `spec2integration.installHooks` / `removeHooks`; setting `spec2integration.hooks.enabled`. |
 | `CLAUDE.md` | Describe the optional extension hooks next to the existing hook description. |
 
+### Implemented (branch `phase4-extension-control-surface`)
+
+- `src/hookServerCore.ts`: listener on `127.0.0.1` that checks the token header and a loopback `Host` header (against DNS rebinding), caps the body at 1 MB, returns an empty `204` for no decision, and returns `500` rather than a decision if the handler throws. It prefers the workspace's previous port, so already-loaded hooks keep working.
+- `src/hookInstall.ts`: adds or removes `Stop` / `SubagentStop` `http` hooks (5 s timeout, token in a header) in `.claude/settings.local.json`. It recognises its own entries by URL path, keeps everything else, and never overwrites an unparseable file. The token is written as a literal value because header env-var interpolation only reads Claude Code's own environment.
+- `src/dispatchTracker.ts`: matches `Stop` / `SubagentStop` to commands the bridge sent, by stored session when known, otherwise the first session to report after the dispatch.
+- `src/hooks.ts`: the opt-in setting `spec2integration.hooks.enabled` and the commands **Connect / Test / Disconnect Claude Code Hooks**. It shows a running → finished status bar item, repaints on finish, and offers to gitignore `settings.local.json` when it isn't ignored.
+- `chatBridge.ts` reports each delivered command. **Its delivery order is unchanged**: it already falls back to the documented deep link, and switching the in-process command to a fallback would change how commands reach the chat, which needs testing inside VS Code first.
+- 34 unit tests, including real HTTP round trips against the listener.
+
+**Finding: managed policy can switch all of this off.** An end-to-end run (`claude -p` against the real listener, with hooks in the project's `settings.local.json`) received **no events**: not the `http` hook, and not a `command` hook added as a control. Claude Code's debug log said `allowManagedHooksOnly is enabled` and `Found 0 total hooks in registry`. Under that managed setting only centrally managed hooks run; user, project and local hooks are dropped. That also disables the repo's own `PostToolUse` status-refresh hook, so `status.json` updates only when a command runs `refresh-status.ps1` itself or the user runs `/status`. Consequences:
+- The extension must work without hooks. The `status.json` watcher stays the primary signal; hooks are an improvement where policy allows them.
+- **Test Claude Code Hooks** runs one short `claude -p` prompt and, if no event arrives, names this policy as the likely cause instead of failing silently.
+- Design B of Change 3 (pre-write gate via `PreToolUse`) is unavailable under that policy. Design A (filesystem diff review) has no such dependency.
+- Agent SDK in-process hooks are not settings hooks, but the SDK needs API-key auth (see the governing constraint).
+
 ### Testing
 
 - Unit: the listener rejects requests without the token, and routes `Stop` to the right stage by `session_id`.

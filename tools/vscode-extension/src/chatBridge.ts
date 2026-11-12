@@ -132,27 +132,49 @@ async function trySessionDelivery(prompt: string, scheme: string): Promise<boole
   return tryDeepLink(prompt, scheme, id);
 }
 
+type DispatchListener = (prompt: string, sessionId?: string) => void;
+let dispatchListener: DispatchListener | undefined;
+
+/** Be told about every command delivered to the chat, with the session it went
+ *  to when known (the reused pipeline session). Used to match Claude Code's Stop
+ *  hook events to commands (src/hooks.ts). */
+export function onDispatch(listener: DispatchListener): void {
+  dispatchListener = listener;
+}
+
 /** Deliver the assembled command per the user's configured strategy, degrading
  *  gracefully: command → deep link → clipboard. */
 export async function sendToChat(rawPrompt: string): Promise<void> {
   const prompt = await maybePreview(rawPrompt);
   if (prompt === undefined) return; // cancelled at preview
   const { delivery, scheme, continueSession } = config();
+  const delivered = (sessionId?: string) => dispatchListener?.(prompt, sessionId);
 
   // Keep the whole pipeline in one tab: resume a reused session via the deep link.
   // Falls through to normal delivery if a session can't be established.
-  if (continueSession && (await trySessionDelivery(prompt, scheme))) return;
+  if (continueSession && (await trySessionDelivery(prompt, scheme))) {
+    delivered(getSessionId());
+    return;
+  }
 
   if (delivery === 'clipboard') {
     await copyToClipboard(prompt);
+    delivered();
     return;
   }
 
   // 'command' tries the in-process call first; 'deeplink' skips straight to the link.
-  if (delivery === 'command' && (await tryCommand(prompt))) return;
+  if (delivery === 'command' && (await tryCommand(prompt))) {
+    delivered();
+    return;
+  }
 
-  if (await tryDeepLink(prompt, scheme)) return;
+  if (await tryDeepLink(prompt, scheme)) {
+    delivered();
+    return;
+  }
 
   // Nothing worked (or was rejected) — guaranteed fallback.
   await copyToClipboard(prompt);
+  delivered();
 }

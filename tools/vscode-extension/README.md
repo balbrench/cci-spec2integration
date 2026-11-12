@@ -126,6 +126,13 @@ is built; resume with `/run-pipeline --folder <folder>`.
   `/lifecycle freeze`) show a 🔒 and point you to `/change` instead. The graph
   is drawn from `status.json` and `schemas/stage-dependencies.json`, and
   repaints whenever `status.json` changes.
+- **Run completion from Claude Code hooks** (opt-in, *Connect Claude Code Hooks*).
+  Starts a listener on `127.0.0.1` and adds `Stop` / `SubagentStop` `http` hooks
+  to the workspace's `.claude/settings.local.json`. The status bar then shows a
+  command sent to the chat as running (with the current agent) and then finished.
+  *Test Claude Code Hooks* checks that events arrive. Organisations that set
+  `allowManagedHooksOnly` in managed Claude Code settings block project hooks;
+  the test then says so, and the extension keeps relying on `status.json` changes.
 - **Adaptive walkthroughs** — separate Getting Started guides for greenfield and
   BizTalk (open from *Help → Get Started*).
 

@@ -15,7 +15,8 @@ import { COMMANDS, findCommand, CommandSpec, NOT_ROW_RUNNABLE, setStageCommands,
 import { loadStageMap, stageCommandTable, StageMap } from './stageMap';
 import { openStageGraph, refreshStageGraph } from './stageGraph';
 import { compose, ComposeContext } from './composer';
-import { sendToChat } from './chatBridge';
+import { sendToChat, onDispatch } from './chatBridge';
+import { hooksEnabled, recordDispatch, startHooks, stopHooks, testHooks, uninstallHooks } from './hooks';
 import { openVisualizer, refreshVisualizer } from './visualizer';
 import { openProgress, refreshProgress } from './progress';
 import { openPath, openPreview } from './artifacts';
@@ -478,6 +479,37 @@ export function activate(context: vscode.ExtensionContext): void {
       if (s.focused) refreshAll();
     }),
   );
+
+  // Claude Code hooks (opt-in): a localhost listener told by Stop / SubagentStop
+  // hooks when a command sent to the chat finishes. A finished run repaints
+  // everything, without waiting for a status.json change.
+  onDispatch(recordDispatch);
+  const enableHooks = () =>
+    startHooks(context, repoRoot, () => refreshAll()).catch((err) =>
+      vscode.window.showErrorMessage(`Spec2Integration: could not start the hook listener: ${(err as Error).message}`),
+    );
+  if (hooksEnabled()) void enableHooks();
+  context.subscriptions.push(
+    { dispose: () => void stopHooks() },
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (!e.affectsConfiguration('spec2integration.hooks.enabled')) return;
+      if (hooksEnabled()) void enableHooks();
+      else void uninstallHooks(repoRoot);
+    }),
+  );
+  reg(context, 'spec2integration.installHooks', async () => {
+    // Turning the setting on starts the listener and installs (via the listener above).
+    if (hooksEnabled()) await enableHooks();
+    else await vscode.workspace.getConfiguration('spec2integration').update('hooks.enabled', true, vscode.ConfigurationTarget.Workspace);
+  });
+  reg(context, 'spec2integration.testHooks', () => testHooks(repoRoot));
+  reg(context, 'spec2integration.removeHooks', async () => {
+    if (hooksEnabled()) {
+      await vscode.workspace.getConfiguration('spec2integration').update('hooks.enabled', false, vscode.ConfigurationTarget.Workspace);
+    } else {
+      await uninstallHooks(repoRoot);
+    }
+  });
 
   // Initial paint + IR schema IntelliSense registration.
   refreshAll();

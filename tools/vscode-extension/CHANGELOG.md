@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dependency graph coloured by status, highlights stale stages and the edges
   that carried the upstream change, and re-runs a stage from its details pane.
   Frozen stages are locked and point to `/change`.
+- **Claude Code hook connection** (opt-in setting `spec2integration.hooks.enabled`;
+  commands *Connect*, *Test* and *Disconnect Claude Code Hooks*). A localhost
+  listener receives `Stop` / `SubagentStop` events, so the status bar shows when
+  a command sent to the chat finishes. It does nothing when a managed policy
+  allows only managed hooks; *Test* reports that case.
 
 ### Changed
 

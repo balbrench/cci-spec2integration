@@ -192,6 +192,21 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "spec2integration.installHooks",
+        "title": "Connect Claude Code Hooks (run completion)",
+        "category": "Spec2Integration"
+      },
+      {
+        "command": "spec2integration.testHooks",
+        "title": "Test Claude Code Hooks",
+        "category": "Spec2Integration"
+      },
+      {
+        "command": "spec2integration.removeHooks",
+        "title": "Disconnect Claude Code Hooks",
+        "category": "Spec2Integration"
+      },
+      {
         "command": "spec2integration.openStageGraph",
         "title": "Open Stage Graph",
         "category": "Spec2Integration",
@@ -439,6 +454,11 @@
           "type": "boolean",
           "default": false,
           "description": "Keep an entire pipeline run in a single Claude Code conversation tab instead of opening a new one per command. The first command mints a reusable session via one tool-free headless `claude -p` call (no permission prompts); later commands resume it via the documented `session=` deep link and refocus its tab. Requires the `claude` CLI on PATH and signed in; falls back to a new conversation if a session can't be established. Use 'Reset Pipeline Chat Session' to start a fresh one."
+        },
+        "spec2integration.hooks.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Let Claude Code tell the extension when a command it sent has finished. Starts a listener on `127.0.0.1` and adds `Stop` and `SubagentStop` `http` hooks pointing at it to the workspace's `.claude/settings.local.json` (per-user and gitignored; it holds this machine's port and a random token). Turning this off removes the entries. Without it, the extension infers progress from `status.json` changes."
         },
         "spec2integration.claudeCliPath": {
           "type": "string",
