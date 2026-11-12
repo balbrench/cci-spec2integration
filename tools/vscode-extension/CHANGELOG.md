@@ -5,6 +5,23 @@ All notable changes to the **Spec2Integration Pipeline** extension are documente
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Stage graph panel** (*Open Stage Graph*). Shows the pipeline stages as a
+  dependency graph coloured by status, highlights stale stages and the edges
+  that carried the upstream change, and re-runs a stage from its details pane.
+  Frozen stages are locked and point to `/change`.
+
+### Changed
+
+- Stage-row commands now come from the shared `schemas/stage-dependencies.json`
+  (also read by `scripts/refresh-status.ps1`) instead of a table hard-coded in
+  the extension. `/implement-*`, `/test-*` and `/deploy-*` follow the active
+  platform in `.spec2integration/state.json`.
+- The extension has unit tests (`npm test`), run by the release workflow.
+
 ## [1.0.2] — 2026-06-09
 
 Status-refresh hook fixes (`scripts/refresh-status.ps1`).

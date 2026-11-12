@@ -118,6 +118,14 @@ is built; resume with `/run-pipeline --folder <folder>`.
 - **IR visualizer** — a bundled Cytoscape graph seeded with the selected
   integration's `integration-ir.yaml`, overlaid with a live status pill and
   Sev-1/2/3 findings.
+- **Stage graph** — the integration's pipeline stages as a dependency graph
+  (*Open Stage Graph*, the merge icon on an integration row). Stages are coloured
+  done / not run / stale / blocked. When you edit an upstream file, the stale
+  stages turn amber and the edges that carried the change are highlighted.
+  Select a stage to see why it is stale and re-run it. Frozen stages (after
+  `/lifecycle freeze`) show a 🔒 and point you to `/change` instead. The graph
+  is drawn from `status.json` and `schemas/stage-dependencies.json`, and
+  repaints whenever `status.json` changes.
 - **Adaptive walkthroughs** — separate Getting Started guides for greenfield and
   BizTalk (open from *Help → Get Started*).
 

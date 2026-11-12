@@ -11,7 +11,9 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { PipelineTreeProvider, IntegrationNode, StageNode, DomainNode, BiztalkGroupNode } from './tree';
-import { COMMANDS, findCommand, CommandSpec } from './commandCatalog';
+import { COMMANDS, findCommand, CommandSpec, NOT_ROW_RUNNABLE, setStageCommands, stageCommand } from './commandCatalog';
+import { loadStageMap, stageCommandTable, StageMap } from './stageMap';
+import { openStageGraph, refreshStageGraph } from './stageGraph';
 import { compose, ComposeContext } from './composer';
 import { sendToChat } from './chatBridge';
 import { openVisualizer, refreshVisualizer } from './visualizer';
@@ -59,6 +61,47 @@ async function composeAndSend(repoRoot: string, cmd: CommandSpec, folder?: strin
 
 const reg = (context: vscode.ExtensionContext, id: string, fn: (...args: any[]) => any) =>
   context.subscriptions.push(vscode.commands.registerCommand(id, fn));
+
+// ---------- stage map (schemas/stage-dependencies.json) ----------
+
+let stageMap: StageMap | undefined;
+let stageMapWarned = false;
+
+/**
+ * (Re)load the shared stage map, the workspace copy first and then the one
+ * bundled in the extension, and rebuild the stage-row command table for the
+ * active platform (default `azure`, the only pack today).
+ */
+async function reloadStageMap(context: vscode.ExtensionContext, repoRoot: string): Promise<void> {
+  stageMap = loadStageMap([repoRoot, vscode.Uri.joinPath(context.extensionUri, 'assets').fsPath]);
+  if (!stageMap) {
+    setStageCommands({});
+    if (!stageMapWarned) {
+      stageMapWarned = true;
+      vscode.window.showWarningMessage(
+        'Spec2Integration: cannot read schemas/stage-dependencies.json, so stage rows cannot be run. Run "Update Pipeline Assets" to restore it.',
+      );
+    }
+    return;
+  }
+  const platform = (await readState(repoRoot)).activePlatform || 'azure';
+  setStageCommands(stageCommandTable(stageMap, platform, NOT_ROW_RUNNABLE));
+}
+
+/** Send a stage's producing command for `folder` through the compose wizard. */
+async function runStageFor(repoRoot: string, folder: string, stageId: string): Promise<void> {
+  const name = stageCommand(stageId);
+  if (!name) {
+    vscode.window.showInformationMessage(`Stage ${stageId} is not run from a stage row. Use "Compose a command".`);
+    return;
+  }
+  const cmd = findCommand(name);
+  if (!cmd) {
+    vscode.window.showErrorMessage(`Unknown command ${name}.`);
+    return;
+  }
+  await composeAndSend(repoRoot, cmd, folder);
+}
 
 /** Commands available with or without a workspace open (the launcher surface). */
 function registerLauncherCommands(context: vscode.ExtensionContext, repoRoot: string | undefined): void {
@@ -324,12 +367,16 @@ export function activate(context: vscode.ExtensionContext): void {
   // Run a specific pipeline stage's command (from a tree stage row).
   reg(context, 'spec2integration.runStage', async (node?: StageNode) => {
     if (!node || !node.stageCommand) return;
-    const cmd = findCommand(node.stageCommand);
-    if (!cmd) {
-      vscode.window.showErrorMessage(`Unknown command ${node.stageCommand}.`);
-      return;
-    }
-    await composeAndSend(repoRoot, cmd, node.folder);
+    await runStageFor(repoRoot, node.folder, node.stage.id);
+  });
+
+  // Stale-stage graph: dependency graph with per-stage re-run.
+  reg(context, 'spec2integration.openStageGraph', async (node?: IntegrationNode) => {
+    const folder = node?.folder ?? (await defaultFolder(repoRoot));
+    await openStageGraph(context, repoRoot, folder, {
+      getMap: () => stageMap,
+      runStage: (f, id) => runStageFor(repoRoot, f, id),
+    });
   });
 
   // Pin the active integration (writes .spec2integration/state.json via /use in chat).
@@ -385,7 +432,9 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBar.command = 'spec2integration.runNext';
   context.subscriptions.push(statusBar);
   const refreshAll = () => {
-    tree.refresh();
+    // Stage-row commands come from the shared map and the active platform
+    // (state.json), so rebuild them before repainting the tree.
+    void reloadStageMap(context, repoRoot).then(() => tree.refresh());
     void updateStatusBar(repoRoot, statusBar);
     void updateHasIntegrationsContext(repoRoot);
     void clearPipelineLaunchedWhenReady(repoRoot);
@@ -394,6 +443,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // Re-decorate an open visualizer / progress view when status.json changes.
     void refreshVisualizer(repoRoot);
     void refreshProgress(repoRoot);
+    void refreshStageGraph();
     // Raise stage-completion / Sev-1 notifications on meaningful transitions.
     void checkNotifications(repoRoot);
   };

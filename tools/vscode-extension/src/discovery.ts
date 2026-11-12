@@ -15,6 +15,8 @@ export interface Stage {
   name: string;
   status: 'done' | 'missing' | 'blocked' | 'covered' | 'stale' | string;
   summary?: string;
+  /** Set by /lifecycle freeze: generative commands refuse to regenerate this stage. */
+  frozen?: boolean;
 }
 
 export interface StalenessEntry {
@@ -50,6 +52,8 @@ export interface IntegrationStatus {
   generatedAt?: string;
   refreshedBy?: string;
   activePlatform?: string | null;
+  /** `generate` (forward build) or `post-implementation` (frozen; edit with /change). */
+  lifecycle?: string;
   stages?: Stage[];
   counts?: Record<string, number | null>;
   staleness?: StalenessEntry[];

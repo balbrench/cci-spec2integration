@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage Graph</title>
+<!--
+  Stage graph webview. Self-contained: no network, no vendored libraries.
+
+  Message contract
+    host -> webview  { type: 'model', model: StageGraphModel | null, error?: string }
+                     (src/stageGraphModel.ts defines StageGraphModel)
+    webview -> host  { type: 'ready' }                 on load; the host replies with 'model'
+                     { type: 'run', stageId }          re-run one stage
+                     { type: 'runNext' }               run status.json `next`
+                     { type: 'openReport', stageId }   open the stage's artifact or report
+
+  Every string from the model is inserted with textContent / setAttribute, never
+  as HTML.
+-->
+<style>
+  :root {
+    --done: var(--vscode-testing-iconPassed, #3fb950);
+    --stale: var(--vscode-editorWarning-foreground, #d29922);
+    --blocked: var(--vscode-errorForeground, #f85149);
+    --muted: var(--vscode-descriptionForeground, #8b949e);
+    --edge: var(--vscode-editorIndentGuide-activeBackground, #6e7681);
+    --focus: var(--vscode-focusBorder, #388bfd);
+  }
+  body { margin: 0; padding: 0 16px 16px; color: var(--vscode-foreground); background: var(--vscode-editor-background);
+         font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--vscode-panel-border, #333); }
+  header h1 { font-size: 1.1em; margin: 0; font-weight: 600; }
+  .badge { padding: 1px 8px; border-radius: 10px; font-size: 0.85em; border: 1px solid var(--muted); color: var(--muted); }
+  .badge.frozen { border-color: var(--focus); color: var(--focus); }
+  .next { color: var(--muted); }
+  .next code { color: var(--vscode-textPreformat-foreground, inherit); }
+  button { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 4px 12px;
+           border-radius: 2px; cursor: pointer; font: inherit; }
+  button:hover:not(:disabled) { background: var(--vscode-button-hoverBackground); }
+  button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 0; color: var(--muted); font-size: 0.9em; }
+  .legend span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; vertical-align: -1px; }
+  .legend .l-done::before { background: var(--done); }
+  .legend .l-missing::before { border: 1px dashed var(--muted); }
+  .legend .l-stale::before { background: var(--stale); }
+  .legend .l-blocked::before { background: var(--blocked); }
+  .legend .l-order::before { width: 16px; height: 0; border-top: 1px dashed var(--edge); border-radius: 0; vertical-align: 3px; }
+  .legend .l-hot::before { width: 16px; height: 0; border-top: 2px solid var(--stale); border-radius: 0; vertical-align: 3px; }
+  main { display: flex; gap: 16px; align-items: flex-start; }
+  #canvas { overflow: auto; flex: 1; min-width: 0; }
+  svg text { fill: var(--vscode-foreground); font-family: var(--vscode-font-family); pointer-events: none; }
+  .node rect { fill: var(--vscode-editorWidget-background, #1f2428); stroke-width: 1.5; cursor: pointer; }
+  .node .bar { stroke: none; }
+  .node.done rect.box { stroke: var(--done); }
+  .node.done .bar { fill: var(--done); }
+  .node.missing rect.box { stroke: var(--muted); stroke-dasharray: 4 3; }
+  .node.missing .bar { fill: transparent; }
+  .node.other rect.box { stroke: var(--muted); }
+  .node.other .bar { fill: var(--muted); }
+  .node.stale rect.box { stroke: var(--stale); }
+  .node.stale .bar { fill: var(--stale); }
+  .node.blocked rect.box { stroke: var(--blocked); }
+  .node.blocked .bar { fill: var(--blocked); }
+  .node.next rect.box { stroke-width: 3; }
+  .node.selected rect.box { stroke: var(--focus); stroke-width: 3; }
+  .node:focus { outline: none; }
+  .node:focus rect.box { stroke: var(--focus); }
+  .node .sub { fill: var(--muted); font-size: 0.8em; }
+  .edge { fill: none; stroke: var(--edge); stroke-width: 1; opacity: 0.45; }
+  .edge.order { stroke-dasharray: 4 3; }
+  .edge.hot { stroke: var(--stale); stroke-width: 2; opacity: 1; }
+  .edge.lit { opacity: 1; stroke-width: 1.5; }
+  aside { width: 300px; flex: none; border-left: 1px solid var(--vscode-panel-border, #333); padding-left: 16px; }
+  aside h2 { font-size: 1em; margin: 12px 0 4px; }
+  aside p { margin: 6px 0; overflow-wrap: anywhere; }
+  aside .muted { color: var(--muted); }
+  aside .warn { color: var(--stale); }
+  aside .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  #empty { padding: 24px 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Stage graph</h1>
+  <span id="lifecycle" class="badge" hidden></span>
+  <span id="next" class="next"></span>
+  <button id="runNext" hidden>Run next</button>
+</header>
+<div class="legend">
+  <span class="l-done">done</span><span class="l-missing">not run</span><span class="l-stale">stale</span>
+  <span class="l-blocked">blocked</span><span>🔒 frozen</span><span class="l-order">runs after</span>
+  <span class="l-hot">carried the change</span>
+</div>
+<div id="empty" hidden></div>
+<main>
+  <div id="canvas"></div>
+  <aside id="details" hidden></aside>
+</main>
+<script>
+(function () {
+  const vscode = acquireVsCodeApi();
+  const NS = 'http://www.w3.org/2000/svg';
+  const COL_W = 184, ROW_H = 60, NODE_W = 150, NODE_H = 44, PAD = 16;
+  let model = null;
+  let selected = (vscode.getState() || {}).selected || null;
+
+  const $ = (id) => document.getElementById(id);
+  function el(tag, attrs, text) {
+    const e = document.createElement(tag);
+    for (const k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function svg(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs || {}) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  const pos = (n) => ({ x: PAD + n.layer * COL_W, y: PAD + n.row * ROW_H });
+  const truncate = (s, max) => (s.length > max ? s.slice(0, max - 1) + '…' : s);
+
+  function select(id) {
+    selected = id;
+    vscode.setState({ selected });
+    render();
+  }
+
+  function renderHeader() {
+    $('title').textContent = 'Stage graph — ' + model.folder;
+    const lc = $('lifecycle');
+    lc.hidden = false;
+    lc.textContent = model.lifecycle === 'post-implementation' ? '🔒 post-implementation' : model.lifecycle;
+    lc.className = 'badge' + (model.lifecycle === 'post-implementation' ? ' frozen' : '');
+    const next = $('next');
+    next.textContent = '';
+    if (model.next) {
+      next.append('Next: ', el('code', {}, model.next.command));
+      if (model.next.reason) next.append(' — ' + model.next.reason);
+    }
+    $('runNext').hidden = !model.next;
+  }
+
+  function renderGraph() {
+    const canvas = $('canvas');
+    canvas.textContent = '';
+    const width = PAD * 2 + (model.layers - 1) * COL_W + NODE_W;
+    const height = PAD * 2 + (model.maxRows - 1) * ROW_H + NODE_H;
+    const root = svg('svg', { width, height, role: 'img', 'aria-label': 'Pipeline stage dependency graph' });
+    const byId = new Map(model.nodes.map((n) => [n.id, n]));
+
+    const edgeLayer = svg('g');
+    // Hot edges last so they draw on top.
+    const edges = model.edges.slice().sort((a, b) => Number(a.hot) - Number(b.hot));
+    for (const e of edges) {
+      const a = byId.get(e.from), b = byId.get(e.to);
+      if (!a || !b) continue;
+      const p = pos(a), q = pos(b);
+      const x1 = p.x + NODE_W, y1 = p.y + NODE_H / 2, x2 = q.x, y2 = q.y + NODE_H / 2;
+      const mx = (x1 + x2) / 2;
+      const lit = selected && (e.from === selected || e.to === selected);
+      const path = svg('path', {
+        d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`,
+        class: ['edge', e.kind, e.hot ? 'hot' : '', lit ? 'lit' : ''].filter(Boolean).join(' '),
+      });
+      path.appendChild(svg('title', {}, `${e.from} → ${e.to}${e.via ? ' via ' + e.via : ' (runs after)'}`));
+      edgeLayer.appendChild(path);
+    }
+    root.appendChild(edgeLayer);
+
+    for (const n of model.nodes) {
+      const p = pos(n);
+      const cls = ['node', n.state, n.isNext ? 'next' : '', n.id === selected ? 'selected' : ''].filter(Boolean).join(' ');
+      const g = svg('g', { class: cls, transform: `translate(${p.x},${p.y})`, tabindex: '0', role: 'button',
+                          'aria-label': `${n.id} ${n.name}: ${n.status}${n.frozen ? ', frozen' : ''}` });
+      g.appendChild(svg('rect', { class: 'box', width: NODE_W, height: NODE_H, rx: 4 }));
+      g.appendChild(svg('rect', { class: 'bar', width: 4, height: NODE_H - 2, x: 1, y: 1, rx: 2 }));
+      g.appendChild(svg('text', { x: 12, y: 19 }, truncate(`${n.id}  ${n.name}`, 22) + (n.frozen ? ' 🔒' : '')));
+      const sub = n.state === 'stale' && n.stalerThan ? `stale · ${n.stalerThan}` : n.status + (n.isNext ? ' · next' : '');
+      g.appendChild(svg('text', { x: 12, y: 36, class: 'sub' }, truncate(sub, 24)));
+      g.appendChild(svg('title', {}, `${n.id} ${n.name} — ${n.status}${n.staleReason ? '\n' + n.staleReason : ''}`));
+      g.addEventListener('click', () => select(n.id));
+      g.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(n.id); }
+      });
+      root.appendChild(g);
+    }
+    canvas.appendChild(root);
+  }
+
+  function renderDetails() {
+    const aside = $('details');
+    const n = model.nodes.find((x) => x.id === selected);
+    aside.textContent = '';
+    if (!n) { aside.hidden = true; return; }
+    aside.hidden = false;
+    aside.append(el('h2', {}, `${n.id}  ${n.name}`));
+    aside.append(el('p', {}, `Status: ${n.status}${n.isNext ? ' (recommended next)' : ''}`));
+    if (n.summary) aside.append(el('p', { class: 'muted' }, n.summary));
+    if (n.staleReason) aside.append(el('p', { class: 'warn' }, '⚠ ' + n.staleReason));
+
+    const ups = model.edges.filter((e) => e.to === n.id).map((e) => e.from);
+    const downs = model.edges.filter((e) => e.from === n.id).map((e) => e.to);
+    if (ups.length) aside.append(el('p', { class: 'muted' }, 'Depends on: ' + ups.join(', ')));
+    if (downs.length) aside.append(el('p', { class: 'muted' }, 'Feeds: ' + downs.join(', ')));
+
+    if (n.frozen) {
+      aside.append(el('p', {}, '🔒 Frozen. This integration is deployed, so regenerating this stage is blocked. Make targeted edits with /change.'));
+    }
+    const actions = el('div', { class: 'actions' });
+    const run = el('button', {}, 'Re-run this stage');
+    if (!n.command) {
+      run.disabled = true;
+      run.title = 'This stage is not run from a stage row. Use Compose a command.';
+    } else if (n.frozen) {
+      run.disabled = true;
+      run.title = 'Frozen: use /change for targeted edits';
+    } else {
+      run.title = `Sends ${n.command} for this integration to Claude Code`;
+      run.addEventListener('click', () => vscode.postMessage({ type: 'run', stageId: n.id }));
+    }
+    actions.append(run);
+    const open = el('button', { class: 'secondary' }, 'Open artifact');
+    open.addEventListener('click', () => vscode.postMessage({ type: 'openReport', stageId: n.id }));
+    actions.append(open);
+    aside.append(actions);
+    if (n.command) aside.append(el('p', { class: 'muted' }, `Command: ${n.command}`));
+  }
+
+  function render() {
+    const empty = $('empty');
+    if (!model || model.nodes.length === 0) {
+      empty.hidden = false;
+      $('canvas').textContent = '';
+      $('details').hidden = true;
+      return;
+    }
+    empty.hidden = true;
+    renderHeader();
+    renderGraph();
+    renderDetails();
+  }
+
+  $('runNext').addEventListener('click', () => vscode.postMessage({ type: 'runNext' }));
+  window.addEventListener('message', (ev) => {
+    const msg = ev.data;
+    if (!msg || msg.type !== 'model') return;
+    model = msg.model;
+    $('empty').textContent = msg.error || 'No stages recorded in status.json yet.';
+    if (model && selected && !model.nodes.some((n) => n.id === selected)) selected = null;
+    render();
+  });
+  vscode.postMessage({ type: 'ready' });
+})();
+</script>
+</body>
+</html>

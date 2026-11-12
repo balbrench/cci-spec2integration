@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { loadStageMap, parseStageMap, producerCommand, stageEdges } from '../src/stageMap.ts';
-import { STAGE_CMD } from '../src/commandCatalog.ts';
+import { loadStageMap, parseStageMap, producerCommand, stageCommandTable, stageEdges } from '../src/stageMap.ts';
+import { NOT_ROW_RUNNABLE } from '../src/commandCatalog.ts';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..');
 
@@ -36,12 +36,27 @@ test('producerCommand fills in the platform', () => {
   assert.equal(producerCommand(map, 'nope', 'azure'), undefined);
 });
 
-test('the extension STAGE_CMD table agrees with the map for azure', () => {
-  // STAGE_CMD is a hand-kept copy; this fails if the two drift apart.
-  const map = realMap();
-  for (const [id, cmd] of Object.entries(STAGE_CMD)) {
-    assert.equal(producerCommand(map, id, 'azure'), cmd, `stage ${id}`);
-  }
+test('the row command table matches the table the extension used to hard-code', () => {
+  // The extension's STAGE_CMD table before it was derived from the map.
+  const expected = {
+    '1a': '/clarify', '2': '/model', '3': '/contracts', '3a': '/contracts', '4': '/map',
+    '5': '/architect', '5a': '/review', '5b': '/review', '5c': '/review', '5d': '/review', '5e': '/review',
+    '6': '/test-mappings', '6a': '/test-flows', '8': '/plan', '9': '/tasks',
+    '10': '/implement-azure', '11': '/test-azure', '12': '/deploy-azure',
+  };
+  assert.deepEqual(stageCommandTable(realMap(), 'azure', NOT_ROW_RUNNABLE), expected);
+});
+
+test('ordering-only edges come from "after" and never duplicate a data edge', () => {
+  const edges = stageEdges(realMap());
+  const order = edges.filter((e) => e.kind === 'order').map((e) => `${e.from}>${e.to}`).sort();
+  assert.deepEqual(order, ['10>12', '11>12', '1>1a', '7>8']);
+  const pairs = edges.map((e) => `${e.from}>${e.to}`);
+  assert.equal(new Set(pairs).size, pairs.length);
+});
+
+test('parseStageMap rejects an "after" that names an unknown stage', () => {
+  assert.throws(() => parseStageMap('{"stages":[{"id":"2","after":["9"]}]}', 'x'), /unknown stage "9"/);
 });
 
 test('stageEdges links stages through shared paths', () => {

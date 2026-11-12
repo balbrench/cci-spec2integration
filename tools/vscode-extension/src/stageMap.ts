@@ -23,6 +23,8 @@ export interface StageDep {
   repoUpstream?: string[];
   /** Skip the staleness check for reverse-engineered (BizTalk) integrations. */
   greenfieldOnly?: boolean;
+  /** Ordering-only predecessors: no file dependency, never makes this stage stale. */
+  after?: string[];
 }
 
 export interface StageMap {
@@ -37,8 +39,10 @@ export interface StageEdge {
   from: string;
   /** Downstream stage id. */
   to: string;
-  /** The upstream path that links them (an artifact of `from`). */
-  via: string;
+  /** The upstream path that links them (an artifact of `from`); undefined for an ordering edge. */
+  via?: string;
+  /** `data`: `to` reads a file `from` writes. `order`: `to` simply runs after `from`. */
+  kind: 'data' | 'order';
 }
 
 export const MAP_RELATIVE_PATH = path.join('schemas', 'stage-dependencies.json');
@@ -59,7 +63,7 @@ export function parseStageMap(text: string, source: string): StageMap {
       throw new Error(`${source}: duplicate stage id "${e.id}"`);
     }
     seen.add(e.id);
-    for (const key of ['artifact', 'upstream', 'repoUpstream'] as const) {
+    for (const key of ['artifact', 'upstream', 'repoUpstream', 'after'] as const) {
       const v = e[key];
       if (v !== undefined && !(Array.isArray(v) && v.every((p) => typeof p === 'string'))) {
         throw new Error(`${source}: stages[${i}].${key} must be an array of strings`);
@@ -75,8 +79,14 @@ export function parseStageMap(text: string, source: string): StageMap {
       upstream: e.upstream as string[] | undefined,
       repoUpstream: e.repoUpstream as string[] | undefined,
       greenfieldOnly: e.greenfieldOnly === true,
+      after: e.after as string[] | undefined,
     };
   });
+  for (const s of stages) {
+    for (const a of s.after ?? []) {
+      if (!seen.has(a)) throw new Error(`${source}: stage "${s.id}" is after unknown stage "${a}"`);
+    }
+  }
   return { source, stages };
 }
 
@@ -109,8 +119,24 @@ export function producerCommand(map: StageMap, stageId: string, platform: string
   return cmd?.split('{platform}').join(platform);
 }
 
+/**
+ * Stage id -> producing command for every stage that has one, with `{platform}`
+ * filled in. `exclude` drops stages whose command the caller can't run with
+ * just the folder argument.
+ */
+export function stageCommandTable(map: StageMap, platform: string, exclude: Iterable<string> = []): Record<string, string> {
+  const skip = new Set(exclude);
+  const table: Record<string, string> = {};
+  for (const s of map.stages) {
+    if (skip.has(s.id)) continue;
+    const cmd = producerCommand(map, s.id, platform);
+    if (cmd) table[s.id] = cmd;
+  }
+  return table;
+}
+
 /** True when `upstream` is `artifact` or lies beneath it, or the reverse. */
-function pathsOverlap(a: string, b: string): boolean {
+export function pathsOverlap(a: string, b: string): boolean {
   const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
   const x = norm(a);
   const y = norm(b);
@@ -122,19 +148,24 @@ function pathsOverlap(a: string, b: string): boolean {
  * overlaps one of A's artifact paths (for example 5's `integration-ir.yaml`
  * feeds 8, and 3's `contracts/openapi.yaml` feeds 4 through `contracts`).
  * Repo-root upstreams (specs/PRD.md) have no producing stage and give no edge.
+ * Each `after` entry adds an `order` edge unless a data edge already links the pair.
  */
 export function stageEdges(map: StageMap): StageEdge[] {
   const edges: StageEdge[] = [];
+  const linked = (from: string, to: string) => edges.some((e) => e.from === from && e.to === to);
   for (const to of map.stages) {
     for (const up of to.upstream ?? []) {
       for (const from of map.stages) {
         if (from.id === to.id) continue;
-        if ((from.artifact ?? []).some((a) => pathsOverlap(a, up))) {
-          if (!edges.some((e) => e.from === from.id && e.to === to.id)) {
-            edges.push({ from: from.id, to: to.id, via: up });
-          }
+        if ((from.artifact ?? []).some((a) => pathsOverlap(a, up)) && !linked(from.id, to.id)) {
+          edges.push({ from: from.id, to: to.id, via: up, kind: 'data' });
         }
       }
+    }
+  }
+  for (const to of map.stages) {
+    for (const from of to.after ?? []) {
+      if (!linked(from, to.id)) edges.push({ from, to: to.id, kind: 'order' });
     }
   }
   return edges;

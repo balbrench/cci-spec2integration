@@ -192,6 +192,12 @@
         "icon": "$(type-hierarchy)"
       },
       {
+        "command": "spec2integration.openStageGraph",
+        "title": "Open Stage Graph",
+        "category": "Spec2Integration",
+        "icon": "$(git-merge)"
+      },
+      {
         "command": "spec2integration.openArtifact",
         "title": "Open Artifact",
         "category": "Spec2Integration",
@@ -265,6 +271,11 @@
           "command": "spec2integration.openVisualizer",
           "when": "view == spec2integration.pipeline && viewItem == integration",
           "group": "inline@2"
+        },
+        {
+          "command": "spec2integration.openStageGraph",
+          "when": "view == spec2integration.pipeline && viewItem == integration",
+          "group": "inline@3"
         },
         {
           "command": "spec2integration.openProgress",

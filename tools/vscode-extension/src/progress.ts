@@ -19,7 +19,7 @@ import {
   Stage,
   PreIntegration,
 } from './discovery';
-import { STAGE_CMD } from './commandCatalog';
+import { findStageForCommand } from './commandCatalog';
 import { resolveArtifact, resolveReport, openPath } from './artifacts';
 
 let panel: vscode.WebviewPanel | undefined;
@@ -67,15 +67,7 @@ async function resolveFolder(repoRoot: string, explicit?: string | null): Promis
  *  so the webview highlight and the tree agree on "next". */
 function nextStageId(status: IntegrationStatus): string | undefined {
   const cmd = status.next?.command?.split(/\s+/)[0];
-  if (!cmd) return undefined;
-  const stages = status.stages ?? [];
-  for (const s of stages) {
-    if (STAGE_CMD[s.id] === cmd && (s.status === 'missing' || s.status === 'stale' || s.status === 'blocked')) {
-      return s.id;
-    }
-  }
-  for (const s of stages) if (STAGE_CMD[s.id] === cmd) return s.id;
-  return undefined;
+  return cmd ? findStageForCommand(cmd, status.stages ?? []) : undefined;
 }
 
 async function countFiles(dir: string, predicate: (name: string) => boolean): Promise<number> {

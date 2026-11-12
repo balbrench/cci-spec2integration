@@ -1,8 +1,8 @@
 // Command catalog — the arg schema for every slash command the wizard can compose.
 //
-// The `STAGE_CMD` map (stage id -> the command that advances/re-runs it) and the
-// folder-arg-safe command list mirror the tables in tools/pipeline-runner/index.html
-// so the per-stage "run" action stays consistent with the web runner.
+// The stage id -> command table (`stageCommand`) is loaded from
+// schemas/stage-dependencies.json at activation (see setStageCommands), not kept
+// by hand. No `vscode` import: this module is unit-tested in plain Node.
 
 /** A single wizard step for one command argument. */
 export type ArgSpec =
@@ -56,27 +56,40 @@ export interface CommandSpec {
   args: ArgSpec[];
 }
 
-/** Stage id -> command that advances/re-runs it. Mirrors index.html STAGE_CMD. */
-export const STAGE_CMD: Record<string, string> = {
-  '1a': '/clarify',
-  '2': '/model',
-  '3': '/contracts',
-  '3a': '/contracts',
-  '4': '/map',
-  '5': '/architect',
-  '5a': '/review',
-  '5b': '/review',
-  '5c': '/review',
-  '5d': '/review',
-  '5e': '/review',
-  '6': '/test-mappings',
-  '6a': '/test-flows',
-  '8': '/plan',
-  '9': '/tasks',
-  '10': '/implement-azure',
-  '11': '/test-azure',
-  '12': '/deploy-azure',
-};
+/** Stages a row can't re-run with just the folder: /specify takes a PRD and
+ *  /platform takes a pack name. They stay reachable through Compose. */
+export const NOT_ROW_RUNNABLE: readonly string[] = ['1', '7'];
+
+let stageCommands: Record<string, string> = {};
+
+/** Install the stage id -> command table (built by stageMap.stageCommandTable). */
+export function setStageCommands(table: Record<string, string>): void {
+  stageCommands = { ...table };
+}
+
+/** The command that advances or re-runs a stage, if a row can run it. */
+export function stageCommand(stageId: string): string | undefined {
+  return stageCommands[stageId];
+}
+
+/**
+ * Which stage does `command` (the first token of status.next.command) advance?
+ * The earliest missing / stale / blocked stage it produces, else the first
+ * stage it produces. Shared by the tree, the progress view and the stage graph
+ * so all three highlight the same "next" stage.
+ */
+export function findStageForCommand(
+  command: string,
+  stages: readonly { id: string; status: string }[],
+): string | undefined {
+  for (const s of stages) {
+    if (stageCommand(s.id) === command && (s.status === 'missing' || s.status === 'stale' || s.status === 'blocked')) {
+      return s.id;
+    }
+  }
+  for (const s of stages) if (stageCommand(s.id) === command) return s.id;
+  return undefined;
+}
 
 /** Canonical ordered pipeline stages (id → display name), mirroring the stage
  *  table in `.claude/skills/pipeline-status/SKILL.md`. Used to render the full

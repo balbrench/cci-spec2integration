@@ -15,7 +15,7 @@ import {
   Stage,
   StalenessEntry,
 } from './discovery';
-import { STAGE_CMD } from './commandCatalog';
+import { stageCommand, findStageForCommand } from './commandCatalog';
 import { resolveArtifact, resolveReport } from './artifacts';
 
 async function pathExists(p: string): Promise<boolean> {
@@ -352,7 +352,7 @@ export class StageNode extends vscode.TreeItem {
       this.iconPath = new vscode.ThemeIcon('beaker', new vscode.ThemeColor('charts.blue'));
       this.description = `generated · not yet run${detail ? ' · ' + detail : ''}`;
     }
-    const runCmd = STAGE_CMD[stage.id];
+    const runCmd = stageCommand(stage.id);
     this.tooltip = new vscode.MarkdownString(
       [
         `**${stage.id} ${stage.name}** — ${generatedNotExecuted ? 'generated, not yet run' : stage.status}`,
@@ -401,7 +401,7 @@ export class StageNode extends vscode.TreeItem {
 
   /** The folder-arg-safe command that advances/re-runs this stage, if any. */
   get stageCommand(): string | undefined {
-    return STAGE_CMD[this.stage.id];
+    return stageCommand(this.stage.id);
   }
 }
 
@@ -521,19 +521,4 @@ export class PipelineTreeProvider implements vscode.TreeDataProvider<vscode.Tree
 
     return [];
   }
-}
-
-/** Heuristic: which stage row does `next.command` point at (for highlighting). */
-function findStageForCommand(command: string, stages: Stage[]): string | undefined {
-  // earliest stale or non-done stage whose STAGE_CMD matches the next command
-  for (const s of stages) {
-    if (STAGE_CMD[s.id] === command && (s.status === 'missing' || s.status === 'stale' || s.status === 'blocked')) {
-      return s.id;
-    }
-  }
-  // fallback: first match regardless of status
-  for (const s of stages) {
-    if (STAGE_CMD[s.id] === command) return s.id;
-  }
-  return undefined;
 }

@@ -198,6 +198,15 @@ The `status.json` staleness model already knows which stages are stale and why (
   - **Re-run from here** needs a small pipeline change. `/run-pipeline` today only accepts `--folder` and always resumes from the first stale or missing stage, so add a `--from <stageId>` flag to `.claude/commands/run-pipeline.md` that starts the resume at the given stage. Ship this action only together with that flag.
 - **Entry point:** a `spec2integration.openStageGraph` command and a tree toolbar icon, next to the existing "Open IR Visualizer".
 
+**Implemented** (branch `phase4-extension-control-surface`), except "Re-run from here", which waits for the `--from` flag:
+- `src/stageGraphModel.ts` builds the graph. Columns use the longest dependency path, and rows are ordered by the average row of each stage's predecessors to cut edge crossings.
+- Stages with no file dependency get ordering-only edges from a new `after` field in `schemas/stage-dependencies.json` (1a after 1, 8 after 7, 12 after 10 and 11), drawn dashed. `refresh-status.ps1` ignores `after`.
+- An edge is highlighted when it leads into a stale stage and its path matches that stage's `stalerThan`.
+- `src/stageGraph.ts` hosts `media/stage-graph/index.html`, which uses a nonce-based CSP and inserts model strings as text only. "Re-run" goes through the same path as the tree's `runStage`; frozen stages are refused there as well as disabled in the webview.
+- The tree, the progress view and the graph now share one `findStageForCommand` and read stage commands from the map. The hand-kept `STAGE_CMD` table is gone.
+- Stages 1 (`/specify`) and 7 (`/platform`) stay non-runnable from a row because their commands need arguments other than the folder, as before.
+- Checked by rendering the webview in headless Edge from a real `status.json`, including a frozen stage. It has not yet been tried inside VS Code.
+
 ### Files
 
 | File | Change |
