@@ -185,6 +185,19 @@ export class IntegrationNode extends vscode.TreeItem {
     );
     this.tooltip = tip;
   }
+
+  /** Files changed in this live integration since the approved baseline (src/reviewGate.ts). */
+  markReviewPending(count: number): void {
+    if (count <= 0) return;
+    this.contextValue = 'integration reviewPending';
+    this.description = [`${count} to review`, this.description].filter(Boolean).join(' · ');
+    this.iconPath = new vscode.ThemeIcon('eye', new vscode.ThemeColor('charts.orange'));
+    if (this.tooltip instanceof vscode.MarkdownString) {
+      this.tooltip.appendMarkdown(`
+
+**${count} change(s) to this live integration need review** — right-click › Review Changes to Live Integration.`);
+    }
+  }
 }
 
 /**
@@ -426,6 +439,8 @@ export class PipelineTreeProvider implements vscode.TreeDataProvider<vscode.Tree
   private activeIntegration: string | null = null;
   /** Set by extension.ts once checkpoints are initialised. */
   checkpointLookup?: CheckpointLookup;
+  /** Set by extension.ts: files waiting for review in a live integration. */
+  reviewLookup?: (folder: string) => number;
 
   constructor(private readonly repoRoot: string) {}
 
@@ -438,12 +453,14 @@ export class PipelineTreeProvider implements vscode.TreeDataProvider<vscode.Tree
   }
 
   private async integrationNode(folder: string, displayLabel?: string): Promise<IntegrationNode> {
-    return new IntegrationNode(
+    const node = new IntegrationNode(
       folder,
       await readStatus(this.repoRoot, folder),
       folder === this.activeIntegration,
       displayLabel,
     );
+    node.markReviewPending(this.reviewLookup?.(folder) ?? 0);
+    return node;
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {

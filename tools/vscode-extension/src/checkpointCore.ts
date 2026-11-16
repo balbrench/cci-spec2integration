@@ -94,7 +94,7 @@ const git = (top: string, args: string[], input?: string | Buffer, env?: NodeJS.
 
 const toPosix = (p: string) => p.split(path.sep).join('/');
 
-function safeRel(rel: string): string {
+export function safeRel(rel: string): string {
   const norm = path.posix.normalize(rel);
   if (norm.startsWith('../') || norm === '..' || path.posix.isAbsolute(norm) || /^[A-Za-z]:/.test(norm)) {
     throw new Error(`unsafe checkpoint path: ${rel}`);
@@ -341,7 +341,7 @@ export const changedCount = (d: CheckpointDiff) => d.added.length + d.modified.l
 
 // ---------- revert ----------
 
-async function removeEmptyDirs(folderAbs: string, rel: string): Promise<void> {
+export async function removeEmptyDirs(folderAbs: string, rel: string): Promise<void> {
   let dir = path.dirname(path.join(folderAbs, rel));
   while (dir.startsWith(folderAbs + path.sep)) {
     try {

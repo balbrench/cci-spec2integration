@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files changed since, with *Compare with Last Checkpoint* and *Revert This
   Stage's Run*; integration rows have *Checkpoint History…*. Revert is byte- and
   mtime-exact and never touches build output or files outside the folder.
+- **Review of changes to live integrations** (setting `spec2integration.reviewGate`,
+  default `frozen-only`). Changes to a deployed (frozen) integration, from any
+  source, are listed for review against the last approved baseline. Each file
+  can be diffed, approved or discarded (byte- and mtime-exact restore). Integration
+  rows show "N to review". `status.json`, `decisions.md`, reports, gate results and
+  line-ending-only changes are excluded.
 - **Automatic status refresh** (setting `spec2integration.autoRefreshStatus`, on by
   default). Reruns `scripts/refresh-status.ps1` for an integration folder 1.5 s
   after files in it change, with at most one run per folder at a time. Keeps

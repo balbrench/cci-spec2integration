@@ -333,6 +333,17 @@ On a deployed (frozen) integration, `/change` lets an Azure agent edit a live ar
 - **Excluded from review:** files the pipeline itself rewrites on every edit or every `/change`: `status.json`, `decisions.md`, and the generated reports (`*-report.md`, `*-report.json`). Without this, every review would be cluttered with bookkeeping.
 - Design A is the **safety net for every write path**. Because it diffs the filesystem, it also catches files an agent wrote through a shell command, which a tool-call hook can miss.
 
+**Implemented** (branch `phase4-extension-control-surface`), with these changes from the design above:
+- **Diff base.** Each reviewed folder has its own *review baseline* rather than reusing the last stage checkpoint, because `/change` is normally typed in the chat, so no checkpoint is taken before it. The baseline is a checkpoint (stage id `_review`, hidden from the checkpoint history) of the folder when the gate starts, which is when the folder is first seen frozen. When nothing is pending any more, the baseline moves forward to the folder as it is. Baselines persist in the extension's storage, so edits made while VS Code was closed are caught on the next start. `HEAD` is not used: `specs/` is often gitignored.
+- **Approvals** record each file's content hash. A file edited again after approval is pending again.
+- **Line endings.** A change that only converts line endings is not pending (the `--ignore-cr-at-eol` intent, done in the diff itself). Discard restores the exact bytes and mtime.
+- **Excluded files:** `status.json`, `decisions.md`, `implement-gates.json` (rewritten by `/change`'s gates), `azure-review.{md,json}`, `traceability-matrix.md` and every `*-report.{md,json}`.
+- **UI.** A quick pick, not a webview: select a file to open its diff, with per-row approve and discard buttons and an *Approve all* title button. The notification offers *Review* and *Approve All*. Integration rows show "N to review" and an inline review button.
+- **`reviewGate` setting** as planned (`off` / `frozen-only` / `always`). An unfreeze (or turning the gate off) drops the baseline.
+- **Design B is not built.** It depends on project hooks, which the managed `allowManagedHooksOnly` policy disables here.
+- **Known limit.** *Approve all* while Claude Code is still writing can fold a write that lands during the baseline move into the new baseline. Approve once the command has finished.
+- Code: `src/reviewCore.ts` (no `vscode`, tested in `test/reviewCore.test.ts` against temporary repos) and `src/reviewGate.ts`.
+
 ### Design B — pre-write gate via the extension's `PreToolUse` hook (optional upgrade)
 
 - Uses the `PreToolUse` http hook from Change 0b, matcher `Write|Edit|MultiEdit|NotebookEdit`. The listener reads the target path from the event. When the path is inside a `lifecycle: post-implementation` folder and is not one of the excluded bookkeeping files, it shows the proposed edit (old and new content from the tool input) in a diff view and answers:

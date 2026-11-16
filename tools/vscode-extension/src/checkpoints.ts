@@ -25,6 +25,7 @@ import {
   readEntry,
   revertCheckpoint,
 } from './checkpointCore';
+import { REVIEW_STAGE } from './reviewCore';
 
 let storeDir: string | undefined;
 let repoRootDir: string | undefined;
@@ -45,6 +46,7 @@ async function reindex(): Promise<void> {
   if (!storeDir) return;
   const next = new Map<string, Checkpoint>();
   for (const cp of await listCheckpoints(storeDir)) {
+    if (cp.stageId === REVIEW_STAGE) continue; // review baselines (reviewGate.ts)
     const k = key(cp.folder, cp.stageId);
     if (!next.has(k)) next.set(k, cp); // list is newest first
   }
@@ -111,7 +113,7 @@ function describe(d: CheckpointDiff): string[] {
 
 async function pickCheckpoint(folder: string, stageId?: string): Promise<Checkpoint | undefined> {
   if (!storeDir) return undefined;
-  const all = (await listCheckpoints(storeDir, folder)).filter((c) => !stageId || c.stageId === stageId);
+  const all = (await listCheckpoints(storeDir, folder)).filter((c) => c.stageId !== REVIEW_STAGE && (!stageId || c.stageId === stageId));
   if (all.length === 0) {
     vscode.window.showInformationMessage(`No checkpoints for ${folder}${stageId ? ' stage ' + stageId : ''} yet. One is taken each time you run a stage from the tree or the stage graph.`);
     return undefined;

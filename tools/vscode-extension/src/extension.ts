@@ -18,6 +18,7 @@ import { openStageGraph, refreshStageGraph } from './stageGraph';
 import { compose, ComposeContext } from './composer';
 import { sendToChat, onDispatch } from './chatBridge';
 import { startStatusRefresher } from './statusRefresher';
+import { initReviewGate, reviewChanges, reviewPendingCount, syncReviewGate } from './reviewGate';
 import { hooksEnabled, recordDispatch, startHooks, stopHooks, testHooks, uninstallHooks } from './hooks';
 import { openVisualizer, refreshVisualizer } from './visualizer';
 import { openProgress, refreshProgress } from './progress';
@@ -397,6 +398,18 @@ export function activate(context: vscode.ExtensionContext): void {
     await showCheckpoints(folder);
   });
 
+  // Review gate: changes to a live (frozen) integration wait for approve / discard.
+  tree.reviewLookup = reviewPendingCount;
+  void initReviewGate(context, repoRoot, () => tree.refresh());
+  reg(context, 'spec2integration.reviewChanges', async (node?: IntegrationNode) => {
+    const folder = node?.folder ?? (await defaultFolder(repoRoot));
+    if (!folder) {
+      vscode.window.showWarningMessage('No integration selected and no active integration set.');
+      return;
+    }
+    await reviewChanges(folder);
+  });
+
   // Stale-stage graph: dependency graph with per-stage re-run.
   reg(context, 'spec2integration.openStageGraph', async (node?: IntegrationNode) => {
     const folder = node?.folder ?? (await defaultFolder(repoRoot));
@@ -473,6 +486,8 @@ export function activate(context: vscode.ExtensionContext): void {
     void refreshStageGraph();
     // Raise stage-completion / Sev-1 notifications on meaningful transitions.
     void checkNotifications(repoRoot);
+    // A /lifecycle freeze or unfreeze starts or stops the review gate.
+    void syncReviewGate();
   };
 
   // Live updates: watch status.json files and the global state file. Also watch

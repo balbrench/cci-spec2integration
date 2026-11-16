@@ -135,6 +135,16 @@ is built; resume with `/run-pipeline --folder <folder>`.
   History…* on an integration row lists older checkpoints. Tracked files go to
   private git refs; gitignored files and non-git workspaces use the extension's
   storage. Settings: `spec2integration.checkpoints.enabled`, `.keep` (default 5 per stage).
+- **Review of changes to live integrations** (setting `spec2integration.reviewGate`:
+  `frozen-only` by default, `always` or `off`). Once an integration is deployed
+  and frozen, its files as they are then become the approved baseline. Any later
+  change to them, whether from `/change`, a shell command, git or another editor,
+  raises a *Review* notification, and the integration row shows "N to review".
+  *Review Changes to Live Integration* lists each changed file: select it to see
+  the diff, then approve it (keep) or discard it (restore the approved version).
+  When nothing is left, the baseline moves forward. Changes made while VS Code
+  was closed are picked up the next time it opens. `status.json`, `decisions.md`,
+  reports, gate results and line-ending-only changes are not reviewed.
 - **Automatic status refresh** (setting `spec2integration.autoRefreshStatus`, on by
   default). When files in an integration folder change, the extension reruns
   `scripts/refresh-status.ps1` for it after a 1.5 s pause, so `status.json`, the
